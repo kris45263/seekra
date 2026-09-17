@@ -228,4 +228,4 @@ def read_page(url: str, *, client: httpx.Client, api_key: str, pages: dict, star
             "content_kind": "extracted_text", "requested_url": url, "url": page["url"], "final_url": None,
             "title": page["title"], "content": page["content"][start:end], "snapshot_id": page["snapshot_id"],
             "start": start, "end": end, "total_characters": total, "next_start": end if end < total else None,
-            "coverage": "本次返回提取文本的上述字符范围；provider 未保证完整抓取网页。"}
+            "coverage": "范围仅针对本次提取文本，不保证覆盖网页全部内容。"}

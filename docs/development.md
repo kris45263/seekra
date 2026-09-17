@@ -1,6 +1,6 @@
 # 开发指南
 
-Seekra 使用 Python 3.13、uv 和普通同步 Python 模块。首次运行与用户命令见 [README](../README.md)，修改核心前先读 [架构与契约](architecture.md)。
+Seekra 使用 Python 3.13、uv 和普通同步 Python 模块。首次运行与用户命令见 [README](../README.md)，模块职责与数据流见 [架构与契约](architecture.md)，按修改范围查阅对应章节。
 
 ## 环境与运行
 
@@ -28,6 +28,8 @@ uv run seekra --repl
 |命令与会话入口|`src/seekra/cli.py`|配置来源、独立目录安装入口、REPL|
 
 ## 工程验证
+
+输入测试通过 prompt-toolkit 解析器和 pipe input 模拟分批粘贴，覆盖尾部换行、运行期间草稿、组合键及持久化提交边界；HTTP 使用本地假响应。这些测试不覆盖具体终端的剪贴板和物理键盘，相关行为的验收使用 Windows Terminal。
 
 ```powershell
 uv run python -X utf8 -m unittest discover -s tests -v
@@ -62,3 +64,11 @@ uv build
 `dist/` 内的 wheel 和源码包是构建时的快照，不随源码编辑更新；可编辑安装运行当前源码，不依赖这些包。需要分发时重新构建并验证安装入口。
 
 本项目当前没有把真实服务实验变成自动通过/失败的 CI 评分。离线测试成功只证明所覆盖的工程行为，不能认证答案事实正确。
+
+## 持久运行开发
+
+默认 CLI 自动保存会话，离线模拟 CLI 测试使用临时 `--session-dir` 或 `--no-session`，不要把真实会话纳入测试夹具。新增研究工具通过 ToolRegistry 接入；Model.generate 的响应与 usage 可用假模型测试，而无需模拟 provider 协议。
+
+恢复相关的验证方法与覆盖边界见 [验证指南](validation.md#持久会话与上下文验收)。
+
+直接调用 `run_agent(..., session=session, resume=True, question=None)` 可恢复最近未完成研究；`execute_run` 返回 RunResult 供新调用者检查 status。具体接口与限制见 [架构契约](architecture.md)。

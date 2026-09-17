@@ -101,7 +101,67 @@ def execute_tool(tool_call: dict, *, client: httpx.Client, api_key: str,
                 raise ValueError(f"参数必须且只能包含非空字符串 {key}")
             result = {"operation": name, "status": "success", "content_kind": "model_note", "note": args[key]}
         else:
-            raise ValueError("未知工具")
+            raise ValueError(f"未注册工具：{name}。请从当前工具列表选择。")
+    except json.JSONDecodeError as exc:
+        result = failure(name, "invalid_arguments", f"参数不是有效 JSON（第 {exc.lineno} 行，第 {exc.colno} 列）。请使用双引号，并检查括号和逗号。")
     except (ValueError, TypeError) as exc:
-        result = failure(name, "invalid_arguments", f"工具参数错误：{exc}")
+        result = failure(name, "invalid_arguments", f"参数无效：{exc}")
     return json.dumps(result, ensure_ascii=False)
+
+
+class ToolRegistry:
+    """统一工具集合；执行核心不依赖 provider、工具名称或接入方式。"""
+    def __init__(self):
+        self._tools = {}
+
+    def register(self, definition, execute):
+        name = definition['function']['name']
+        if name in self._tools:
+            raise ValueError(f'工具重复：{name}')
+        self._tools[name] = (deepcopy(definition), execute)
+
+    @property
+    def definitions(self):
+        return [deepcopy(definition) for definition, _ in self._tools.values()]
+
+    def execute(self, call, pages, known):
+        name = call['function']['name']
+        if name not in self._tools:
+            return json.dumps(failure(name,'invalid_arguments',f'未注册工具：{name}。请从当前工具列表选择。'),ensure_ascii=False)
+        return self._tools[name][1](call, pages, known)
+
+
+def default_registry(client, api_key, session, structured=False, definitions=None):
+    """现有工具作为适配器注册；历史读取始终限制在当前会话。"""
+    from .context import history_index
+    registry = ToolRegistry()
+    def execute(call, pages, known):
+        return execute_tool(call,client=client,api_key=api_key,pages=pages,
+                            structured_think=structured,known_operations=known)
+    for definition in definitions if definitions is not None else tool_definitions(structured):
+        registry.register(definition, execute)
+    history_tools = [
+        ('list_history','浏览当前会话的原始执行记录索引；不搜索外部内容。',
+         {'cursor':{'type':'integer','minimum':0},'limit':{'type':'integer','minimum':1,'maximum':50}}, [],
+         lambda args: history_index(session, **args)),
+        ('read_history','按记录编号和字符范围读取当前会话原文，不把历史笔记当成新证据。',
+         {'record_id':{'type':'string'},'start':{'type':'integer','minimum':0},
+          'limit':{'type':'integer','minimum':1,'maximum':24000}}, ['record_id'],
+         lambda args: session.read_record(args.pop('record_id'), **args)),
+    ]
+    for name, description, properties, required, reader in history_tools:
+        definition={'type':'function','function':{'name':name,'description':description,
+                    'parameters':{'type':'object','properties':properties,'required':required,'additionalProperties':False}}}
+        def handler(call, pages, known, reader=reader, properties=properties, required=required, name=name):
+            try:
+                args=json.loads(call['function']['arguments'])
+                if not isinstance(args,dict) or not set(required)<=set(args)<=set(properties):
+                    raise ValueError('历史读取参数不合法')
+                result=reader(args)
+            except json.JSONDecodeError as exc:
+                result=failure(name,'invalid_arguments',f'参数不是有效 JSON（第 {exc.lineno} 行，第 {exc.colno} 列）。请使用 JSON 对象。')
+            except (ValueError,TypeError) as exc:
+                result=failure(name,'invalid_arguments',str(exc))
+            return json.dumps(result,ensure_ascii=False)
+        registry.register(definition, handler)
+    return registry

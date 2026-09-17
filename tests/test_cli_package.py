@@ -42,15 +42,17 @@ class InstalledCliTests(unittest.TestCase):
         """中文欢迎信息、本地帮助、清空和退出均走真实入口。"""
         with tempfile.TemporaryDirectory() as directory:
             self.write_config(directory)
-            result = self.invoke(directory, "--repl", text="/help\n/new\n/未知命令\n/exit\n")
-        self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8"))
-        self.assertEqual(result.stdout, b"")
-        shown = result.stderr.decode("utf-8")
+            results = [self.invoke(directory, "--repl", text=command+'\n')
+                       for command in ('/help', '/new', '/未知命令', '/exit')]
+        for result in results:
+            self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8"))
+            self.assertEqual(result.stdout, b"")
+        shown = ''.join(result.stderr.decode('utf-8') for result in results)
         self.assertIn("Seekra", shown)
-        self.assertIn("› ", shown)
+        self.assertIn("Enter 发送", shown)
         self.assertIn("/help", shown)
-        self.assertIn("未知命令", shown)
-        self.assertIn("已开始新对话", shown)
+        self.assertIn("不认识这个命令", shown)
+        self.assertIn("新对话准备好了", shown)
         self.assertNotIn("你：", shown)
 
     def test_explicit_config_works_outside_project(self):

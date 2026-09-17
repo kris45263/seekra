@@ -100,7 +100,9 @@ class HarnessTests(unittest.TestCase):
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             with self.assertRaises(RuntimeError):
                 run_agent("问题", client=client, model="m", deepseek_api_key="d", tavily_api_key="t", session=session, max_iterations=1)
-        self.assertEqual(session, before)
+        self.assertEqual(session.messages, before.messages)
+        self.assertEqual(session.pages, before.pages)
+        self.assertTrue(session.records)  # 未完成输入的执行事实保留，不进入完成历史。
         self.assertEqual(session.pages, {})
 
     def test_structured_notes_are_optional_and_references_checked(self):

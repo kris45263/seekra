@@ -5,7 +5,7 @@ import json
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 
-from seekra.display import AgentDisplay
+from seekra.display import AgentDisplay, session_transcript
 from seekra.agent import run_agent
 from seekra.session import Session
 import httpx
@@ -14,6 +14,43 @@ from test_agent import reply, call
 
 
 class DisplayEventTests(unittest.TestCase):
+    def test_tool_failure_shows_reason_without_promising_the_next_action(self):
+        err=io.StringIO()
+        with redirect_stderr(err):
+            AgentDisplay().event('tool_result',tool_name='read_page',result=json.dumps({
+                'status':'failed','error':'Tavily 报告目标页面返回 404。'}))
+        self.assertIn('页面读取未完成',err.getvalue())
+        self.assertIn('404',err.getvalue())
+        self.assertNotIn('继续根据',err.getvalue())
+
+    def test_old_duplicate_partial_record_does_not_repeat_completed_message(self):
+        session=Session(records=[
+            {'kind':'model_completed','run_id':'r','message':{'role':'assistant','content':'先查找','tool_calls':[{}]}},
+            {'kind':'run_ended','run_id':'r','status':'needs_attention','partial_content':'先查找','error':'结果未知'}])
+        self.assertEqual(session_transcript(session).count('先查找'),1)
+        session.records.insert(1,{'kind':'model_started','run_id':'r'})
+        self.assertEqual(session_transcript(session).count('先查找'),2)
+
+    def test_restored_transcript_distinguishes_partial_answers_without_exposing_internal_messages(self):
+        session = Session()
+        session.record('run_started', run_id='r', question='我的问题', system='内部系统说明', config={})
+        session.record('model_completed', run_id='r', finish_reason='tool_calls', message={
+            'role':'assistant', 'content':'先搜索', 'tool_calls':[call('tavily_search', {'query':'查询'})]})
+        session.record('run_ended', run_id='r', status='interrupted', error='取消', partial_content='未完成 secret')
+        session.record('run_resumed', run_id='r')
+        session.record('model_completed', run_id='r', finish_reason='stop', message={'role':'assistant','content':'完整答案'})
+        session.record('run_ended', run_id='r', status='completed')
+        before = json.dumps(session.records, ensure_ascii=False)
+        text = session_transcript(session, ('secret',))
+        self.assertIn('Seekra · 回答未完成', text)
+        self.assertIn('已停止', text)
+        self.assertIn('继续回答', text)
+        self.assertEqual(text.count('完整答案'), 1)
+        self.assertNotIn('内部系统说明', text)
+        self.assertNotIn('tool_calls', text)
+        self.assertNotIn('secret', text)
+        self.assertEqual(json.dumps(session.records, ensure_ascii=False), before)
+
     def test_display_alone_renders_verbose_lifecycle_without_reprinting_content(self):
         """完整诊断由展示对象提供，不依赖 Agent 再建立隐藏输出器。"""
         out, err = io.StringIO(), io.StringIO()
@@ -27,7 +64,7 @@ class DisplayEventTests(unittest.TestCase):
         self.assertEqual(out.getvalue(), '唯一正文\n')
         self.assertNotIn('唯一正文', err.getvalue())
         self.assertIn('上下文 2 条消息', err.getvalue())
-        self.assertIn('模型决定：直接回答', err.getvalue())
+        self.assertIn('运行结束：1 次模型调用', err.getvalue())
 
     def test_collector_receives_events_without_terminal_output(self):
         """采集实验事件不要求创建终端视图，返回答案仍可独立消费。"""
@@ -41,7 +78,7 @@ class DisplayEventTests(unittest.TestCase):
         self.assertEqual(answer, '答案')
         self.assertEqual((out.getvalue(), err.getvalue()), ('', ''))
         self.assertEqual([event for event, _ in events],
-                         ['start', 'model_call', 'model_response', 'final_answer'])
+                         ['start', 'context', 'model_call', 'model_response', 'usage', 'final_answer'])
 
     def test_broken_diagnostics_preserve_requests_answer_and_session(self):
         """诊断写入或刷新故障都不影响真实循环、正文及成功提交。"""

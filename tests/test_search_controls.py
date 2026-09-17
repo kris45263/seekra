@@ -74,7 +74,7 @@ class SearchControlTests(unittest.TestCase):
             view.event('tool_result',tool_name='read_page',result=json.dumps({'status':'partial',
                        'title':'标题','url':'https://example.com/a','next_start':None}))
         self.assertEqual(result,saved)
-        for text in ('搜索词','example.com','标题','https://example.com/a','续读','本次提取内容'):
+        for text in ('搜索词','example.com','标题','https://example.com/a','接着读取','这次取得的页面内容已读完'):
             self.assertIn(text,out.getvalue())
         self.assertNotIn('正文不应展开',out.getvalue())
 

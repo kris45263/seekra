@@ -121,7 +121,7 @@ class RetrievalEdgeTests(unittest.TestCase):
                 self.assertEqual("goal" in fields, enabled)
                 return reply("答案")
             client = httpx.Client(transport=httpx.MockTransport(handler))
-            with patch("sys.argv", ["seekra", "问题"] + (["--structured-think"] if enabled else [])), \
+            with patch("sys.argv", ["seekra", "问题", "--no-session"] + (["--structured-think"] if enabled else [])), \
                  patch("seekra.cli.read_config", return_value={"DEEPSEEK_API_KEY": "d", "DEEPSEEK_MODEL": "m", "TAVILY_API_KEY": "t"}), \
                  patch("seekra.cli.httpx.Client", return_value=client), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 self.assertEqual(main(), 0)

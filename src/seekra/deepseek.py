@@ -1,6 +1,7 @@
 """DeepSeek 流式响应：正文立即通知，工具调用完整组装后才返回。"""
 
 from collections.abc import Callable, Iterator
+from contextlib import nullcontext
 import json
 
 import httpx
@@ -33,6 +34,8 @@ def stream_chat_completion(
     *, client: httpx.Client, model: str, api_key: str,
     messages: list[dict], on_content: Callable[[str], None] | None = None,
     tools: list[dict] | None = None,
+    on_usage: Callable[[dict], None] | None = None,
+    cancel=None,
 ) -> dict:
     """接收一轮完整 assistant 响应，不修改历史、不打印、不重试。
 
@@ -47,7 +50,10 @@ def stream_chat_completion(
         for message in messages
     ):
         raise ValueError("流式接口需要非空且与工具配置一致的消息历史。")
+    if cancel is not None:
+        cancel.check()
     parts = []
+    usage = None
     reasoning = []
     calls = {}
     finished = None
@@ -58,13 +64,15 @@ def stream_chat_completion(
               "max_tokens": 8192, "stream": True,
               **({"tools": tools, "tool_choice": "auto"} if tools else {})},
         timeout=60,
-    ) as response:
+    ) as response, (cancel.watch(response.close) if cancel is not None else nullcontext()):
         response.raise_for_status()
         media = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
         if media != "text/event-stream":
             raise StreamProtocolError("DeepSeek 未返回 SSE 流。")
         response.encoding = "utf-8"
         for data in _sse_data(response):
+            if cancel is not None:
+                cancel.check()
             if data == "[DONE]":
                 answer = "".join(parts)
                 if finished == 'tool_calls' and calls:
@@ -84,13 +92,17 @@ def stream_chat_completion(
                     message['tool_calls'] = ordered
                 if reasoning and tools:
                     message['reasoning_content'] = ''.join(reasoning)
-                return {'message': message, 'finish_reason': finished}
+                return {'message': message, 'finish_reason': finished, 'usage': usage}
             try:
                 chunk = json.loads(data)
             except ValueError:
                 raise StreamProtocolError("DeepSeek 流事件不是合法 JSON。") from None
             if not isinstance(chunk, dict) or "error" in chunk:
                 raise StreamProtocolError("DeepSeek 返回异常流事件。")
+            if isinstance(chunk.get('usage'), dict):
+                usage = chunk['usage']
+                if on_usage is not None:
+                    on_usage(usage)
             choices = chunk.get("choices")
             if choices == [] and isinstance(chunk.get("usage"), dict):
                 continue

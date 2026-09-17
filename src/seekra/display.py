@@ -17,6 +17,52 @@ def display_text(value: object, secrets: tuple[str, ...] = (), *, single_line: b
     return ' '.join(text.splitlines()) if single_line else text
 
 
+def _usage_totals_text(totals):
+    complete = totals['calls'] - totals['missing_calls']
+    inputs = totals.get('input_reports', complete)
+    outputs = totals.get('output_reports', complete)
+    if not inputs and not outputs:
+        return '未取得用量报告。'
+    incoming = str(totals['input_tokens']) if inputs else '未取得'
+    outgoing = str(totals['output_tokens']) if outputs else '未取得'
+    text = f'输入 {incoming}，输出 {outgoing}。'
+    return text
+
+
+def session_transcript(session, secrets=()) -> str:
+    """从执行记录重建可读对话；不把工具 JSON 或系统提示展示为回答。"""
+    parts = []
+    committed = {}
+    states = {'interrupted':'已停止', 'failed':'回答未完成', 'paused':'已暂停',
+              'needs_attention':'需要处理'}
+    for record in session.records:
+        kind = record['kind']
+        if kind == 'session_reset':
+            parts.clear()
+            committed.clear()
+        elif kind == 'model_started':
+            committed.pop(record['run_id'], None)
+        elif kind == 'run_started':
+            parts.append('\n── 你 ──\n' + record['question'] + '\n')
+        elif kind == 'model_completed':
+            message = record['message']
+            committed[record['run_id']] = message.get('content')
+            if message.get('content'):
+                label = 'Seekra'
+                parts.append(f'\n── {label} ──\n{message["content"]}\n')
+        elif kind == 'run_resumed':
+            parts.append('\n── 继续回答 ──\n')
+        elif kind == 'run_ended' and record['status'] != 'completed':
+            # 兼容旧日志：已保存的完整消息在工具失败时曾被重复记作残稿。
+            if record.get('partial_content') and record['partial_content'] != committed.get(record['run_id']):
+                parts.append('\n── Seekra · 回答未完成 ──\n' + record['partial_content'] + '\n')
+            reason = record.get('error') or ''
+            state = states.get(record['status'], record['status'])
+            parts.append('\n已停止。\n' if record['status']=='interrupted'
+                         else f'\n{state}：{reason}\n' if reason else f'\n{state}。\n')
+    return display_text(''.join(parts), secrets)
+
+
 class TextStreamWriter:
     """正文逐段写入并刷新；与可忽略写入故障的调试展示不同。"""
 
@@ -70,10 +116,25 @@ class AgentDisplay:
                 elapsed = time.monotonic() - self.started
                 first = f'{self.first - self.started:.3f} 秒' if self.first is not None else '无正文'
                 text = f'本轮模型：首段正文 {first}，总耗时 {elapsed:.3f} 秒，正文片段 {self.fragments} 段。'
+        elif event == 'usage' and self.verbose:
+            usage = details.get('usage') or {}
+            incoming, outgoing = usage.get('input_tokens'), usage.get('output_tokens')
+            show = lambda value: str(value) if value is not None else '未取得'
+            text = f'本次请求 token：输入 {show(incoming)}，输出 {show(outgoing)}。'
+            rate = usage.get('cache_hit_rate')
+            if rate is not None:
+                text += f' 缓存命中率：{rate*100:.1f}%。'
+            if incoming is None or outgoing is None:
+                text += ' 报告不完整。'
+        elif event == 'context' and self.verbose:
+            text = f"请求长度：{details['request_characters']} 字符（含消息和工具定义）。"
+            if details['offloaded']:
+                text += ' 部分原文已转为历史记录，可按需读取。'
         elif event == 'tool_call':
             name = details['tool_call']['function']['name']
             text = {'tavily_search': '正在搜索…', 'read_page': '正在读取网页…',
-                    'think_tool': '正在整理信息…'}.get(name, '正在执行工具…')
+                    'think_tool': '正在整理信息…', 'list_history': '正在查找之前的内容…',
+                    'read_history': '正在回看之前的内容…'}.get(name, '正在执行工具…')
             try:
                 args = json.loads(details['tool_call']['function']['arguments'])
                 if isinstance(args, dict):
@@ -85,7 +146,7 @@ class AgentDisplay:
                     elif name == 'read_page':
                         start = args.get('start', 0)
                         if type(start) is int and start > 0:
-                            text = '正在续读已有页面内容…'
+                            text = '正在接着读取页面…'
                         text += '\n' + display_text(args.get('url', ''), self.secrets, single_line=True)
             except (ValueError, TypeError):
                 pass
@@ -94,33 +155,50 @@ class AgentDisplay:
                 result = json.loads(details['result'])
                 status = result.get('status')
                 if status == 'failed':
-                    text = '本次工具未能完成，继续根据已有信息处理。'
+                    label = {'tavily_search':'搜索','read_page':'页面读取','think_tool':'笔记记录',
+                             'list_history':'历史查找','read_history':'历史读取'}.get(details['tool_name'],'工具调用')
+                    text = f"{label}未完成：{result.get('error') or '未取得可用结果。'}"
                 elif details['tool_name'] == 'tavily_search':
-                    text = '未找到相关结果。' if status == 'empty' else f"找到 {len(result.get('results', []))} 条结果。"
+                    text = '这次没有找到相关结果。' if status == 'empty' else f"找到 {len(result.get('results', []))} 条结果。"
                     for number, row in enumerate(result.get('results', []), 1):
                         title = display_text(row.get('title') or row.get('url', ''), self.secrets, single_line=True)
                         url = display_text(row.get('url', ''), self.secrets, single_line=True)
                         text += f'\n  {number}. {title}\n     {url}'
                 elif details['tool_name'] == 'read_page':
                     if status == 'partial':
-                        text = ('已取得本次提取内容的最后一部分。' if result.get('next_start') is None
-                                else '已取得本次提取内容的一部分，可继续读取。')
+                        text = ('这次取得的页面内容已读完。' if result.get('next_start') is None
+                                else '已读到一部分，后面还有内容。')
                     else:
-                        text = '已取得页面文本。'
+                        text = '已读到页面内容。'
                     text += '\n' + display_text(result.get('title') or result.get('url', ''), self.secrets, single_line=True)
             except (ValueError, TypeError, AttributeError):
-                text = '工具已返回结果。'
+                text = '工具结果无法解析。'
         elif event == 'end':
             try:
                 self.writer.finish()
             except (OSError, UnicodeError):
                 pass  # 保留原始异常，不在异常清理时再次写坏掉的 stdout。
-        if text:
+        if text and not (self.verbose and event in {'tool_call','tool_result'}):
             self._write_status(text)
         if self.verbose:
             detail = _verbose_text(event, **details)
             if detail:
                 self._write_status(detail)
+
+    def usage_summary(self, before, after):
+        calls = after['calls'] - before['calls']
+        if not calls:
+            return
+        delta = {key: after[key]-before[key] for key in after}
+        text = '本次 token：' + _usage_totals_text(delta)
+        if before['calls']:
+            text += ' 对话累计：' + _usage_totals_text(after)
+        if after['missing_calls']:
+            if before['calls']:
+                text += f" 统计不完整（本次 {delta['missing_calls']} 次、对话累计 {after['missing_calls']} 次请求报告有缺失），数值仅含已报告部分。"
+            else:
+                text += f" 统计不完整（{after['missing_calls']} 次请求报告有缺失），数值仅含已报告部分。"
+        self._write_status(text)
 
     def _write_status(self, text: str) -> None:
         """诊断只改显示副本；输出失败不改变研究执行。"""
@@ -132,9 +210,7 @@ class AgentDisplay:
 
 def _verbose_text(event: str, **details) -> str | None:
     """将生命周期事件格式化为详细诊断；不写终端，不重复正文。"""
-    if event == "start":
-        text = f"任务\n{details['question']}"
-    elif event == "model_call":
+    if event == "model_call":
         text = (f"\n── 第 {details['round']} 轮 ──\n"
                 f"模型调用：上下文 {details['message_count']} 条消息；"
                 f"本次之后剩余 {details['remaining']} 次")
@@ -188,14 +264,10 @@ def _verbose_text(event: str, **details) -> str | None:
                              f"排除：{reasons}")
             except (ValueError, KeyError, TypeError):
                 text = f"工具结果（原文）：\n{result}"
-        text += f"\n已写回上下文：当前 {details['message_count']} 条消息"
     elif event == "final_answer":
-        text = ("模型决定：直接回答，不再调用工具\n\n"
-                f"运行结束：模型返回最终答案，共 {details['round']} 轮模型调用。")
+        text = f"运行结束：{details['round']} 次模型调用。"
     elif event == "end":
-        text = f"\n异常结束：{details['end_reason']}"
-        if details.get("http_status") is not None:
-            text += f"（HTTP {details['http_status']}）"
+        text = f"异常结束（{details.get('status', 'failed')}）：{details['end_reason']}"
     else:
         return
     return text

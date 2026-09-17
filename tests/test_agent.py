@@ -69,7 +69,7 @@ class AgentTests(unittest.TestCase):
                     self.assertEqual(body["model"], "test-deepseek")
                     self.assertEqual(body["thinking"], {"type": "disabled"})
                     self.assertEqual({t["function"]["name"] for t in body["tools"]},
-                                     {"tavily_search", "think_tool", "read_page"})
+                                     {"tavily_search", "think_tool", "read_page", "list_history", "read_history"})
                     messages = body["messages"]
                     if histories:
                         self.assertEqual(messages[1:len(histories[-1])], histories[-1][1:])
@@ -209,7 +209,7 @@ class VerboseTests(unittest.TestCase):
             run_agent("问题", client=client, model="m", deepseek_api_key="fake-ds",
                       tavily_api_key="fake-tv", on_event=AgentDisplay(True, secrets=('fake-ds', 'fake-tv')).event)
         self.assertEqual(err.getvalue().count(snippet), 2)
-        self.assertEqual(err.getvalue().count("https://example.org/repeated"), 4)
+        self.assertEqual(err.getvalue().count("https://example.org/repeated"), 2)
         self.assertNotIn("答案正文", err.getvalue())
 
     def test_failures_and_empty_search_remain_observable(self):
@@ -255,7 +255,7 @@ class VerboseTests(unittest.TestCase):
         self.assertEqual(answer, "回显 fake-ds")
         self.assertNotIn("fake-ds", err.getvalue())
         self.assertNotIn("fake-tv", err.getvalue())
-        self.assertIn("已隐藏密钥", err.getvalue())
+        self.assertNotIn("问题 fake-tv", err.getvalue())
 
     def test_cli_verbose_keeps_requests_identical_and_separates_output(self):
         """使用真实命令行入口及循环，仅模拟配置和 HTTP 传输。"""
@@ -287,7 +287,7 @@ class VerboseTests(unittest.TestCase):
                 return reply("这是测试用的答案正文。")
 
             client = httpx.Client(transport=httpx.MockTransport(handler))
-            with patch("sys.argv", ["seekra", "问题"] + (["--verbose"] if verbose else [])), \
+            with patch("sys.argv", ["seekra", "问题", "--no-session"] + (["--verbose"] if verbose else [])), \
                  patch("seekra.cli.read_config", return_value={"DEEPSEEK_API_KEY": "fake-ds",
                        "DEEPSEEK_MODEL": "test-model", "TAVILY_API_KEY": "fake-tv"}), \
                  patch("seekra.cli.httpx.Client", return_value=client), \
@@ -304,13 +304,13 @@ class VerboseTests(unittest.TestCase):
                     self.assertNotIn(hidden, err.getvalue())
                 for count in (2, 4, 6):
                     self.assertIn(f"上下文 {count} 条消息", err.getvalue())
-                self.assertIn("已写回上下文", err.getvalue())
+                self.assertNotIn("已写回上下文", err.getvalue())
                 self.assertIn("收到 3 条，保留 1 条", err.getvalue())
                 self.assertIn("URL 与正文完全重复 1 条", err.getvalue())
                 self.assertIn("空正文 1 条", err.getvalue())
-                self.assertIn("模型决定：直接回答", err.getvalue())
+                self.assertIn("运行结束：3 次模型调用", err.getvalue())
                 for unique in ("Python 官方改进", "https://example.org", "内部笔记正文"):
-                    self.assertEqual(err.getvalue().count(unique), 2 if unique in {"Python 官方改进", "https://example.org"} else 1)
+                    self.assertEqual(err.getvalue().count(unique), 1)
             else:
                 self.assertIn("正在思考", err.getvalue())
                 self.assertNotIn("上下文", err.getvalue())
