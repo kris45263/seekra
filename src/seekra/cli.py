@@ -25,7 +25,7 @@ REPL_HELP = """/help  查看帮助
 /continue  继续上次未完成的回答
 /exit  退出 Seekra
 
-Enter 发送；Ctrl+J 换行，Shift/Ctrl+Enter 取决于终端支持。
+Enter 发送；Shift+Enter 换行，终端不支持时可用 Ctrl+J。
 Ctrl+C：运行时停止，空闲时清空输入，输入为空时退出。空闲且输入为空时也可用 Ctrl+D 退出。
 滚轮查看，PageUp/PageDown 翻页；Ctrl+Home/End 跳到输入内容首尾。
 Windows Terminal：Shift 拖选后 Ctrl+Shift+C 复制。"""

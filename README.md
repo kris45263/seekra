@@ -69,7 +69,7 @@ Seekra · 对话 …
 › Python 3.13 的主要改进有哪些？请提供官方来源。
 ```
 
-Enter 发送输入框中的完整内容；Ctrl+J 换行，Shift+Enter、Ctrl+Enter 取决于终端支持。粘贴保留换行，不自动发送。Ctrl+Home/End 跳到输入内容首尾。Windows Terminal 中可按住 Shift 拖选文本，再用 Ctrl+Shift+C 复制。
+Enter 发送输入框中的完整内容；Shift+Enter 换行，终端不支持时可用 Ctrl+J。粘贴保留换行，不自动发送。Ctrl+Home/End 跳到输入内容首尾。Windows Terminal 中可按住 Shift 拖选文本，再用 Ctrl+Shift+C 复制。
 
 模型运行期间仍可编辑和粘贴；此时按 Enter 会提示消息尚未发送。回答结束后，再按 Enter 发送下一条。交互界面使用全屏布局，标题和输入区状态栏持续显示当前对话；退出后回到原终端。向上滚动时保持阅读位置，回到底部后跟随新输出；两个区域都可查看折行的长文本。只有较早内容超出显示范围时，状态栏才提示“更早内容未显示”，保存的对话记录不受影响。
 
