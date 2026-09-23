@@ -15,6 +15,7 @@ from .session import Session
 from .display import AgentDisplay, display_text, session_transcript
 from .input import ReplInput
 from .deepseek import StreamProtocolError
+from .runtime import ContentOutputError
 
 
 REPL_HELP = """/help  查看帮助
@@ -92,6 +93,10 @@ def run_question(question: str, *, client: httpx.Client, config: dict,
     except KeyboardInterrupt:
         print("已停止。", file=sys.stderr)
         return 130
+    except ContentOutputError as exc:
+        storage_or_output_failed = True
+        print(execution_error_message(exc), file=sys.stderr)
+        return 74
     except (OSError, UnicodeError):
         storage_or_output_failed = True
         print('会话保存失败，部分执行记录可能未保存，已停止当前任务。' if session._storage_failed
@@ -136,7 +141,7 @@ def continuation_hint(session, max_iterations):
 
 def main() -> int:
     """启动单次问答或 REPL，共用配置、客户端和当前内存会话。"""
-    # 入口统一处理文本编码，用户不再需要传入 python -X utf8。
+    # 命令入口统一使用 UTF-8 处理文本输入输出。
     # 仅配置真实文本流；嵌入调用和测试提供的自定义输出对象保持原样。
     for stream in (sys.stdin, sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper):

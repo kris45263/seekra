@@ -5,6 +5,8 @@ import sys
 import time
 import unicodedata
 
+from .runtime import ContentOutputError
+
 
 def display_text(value: object, secrets: tuple[str, ...] = (), *, single_line: bool = False) -> str:
     """只处理显示副本：遮蔽密钥与终端控制字符，不改证据或模型消息。"""
@@ -74,9 +76,12 @@ class TextStreamWriter:
     def write(self, text: str) -> None:
         """原样输出非空片段，写入或刷新失败向上传播。"""
         if text:
-            self.output.write(text)
-            self.needs_newline = not text.endswith("\n")
-            self.output.flush()
+            try:
+                self.output.write(text)
+                self.needs_newline = not text.endswith("\n")
+                self.output.flush()
+            except Exception as exc:
+                raise ContentOutputError('正文写入或刷新失败') from exc
 
     def finish(self) -> None:
         """必要时补换行，重复调用不会重复输出。"""

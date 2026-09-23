@@ -31,6 +31,8 @@ uv run seekra --repl
 
 输入测试通过 prompt-toolkit 解析器和 pipe input 模拟分批粘贴，覆盖尾部换行、运行期间草稿、组合键及持久化提交边界；HTTP 使用本地假响应。这些测试不覆盖具体终端的剪贴板和物理键盘，相关行为的验收使用 Windows Terminal。
 
+Windows 输入适配复用 prompt-toolkit 的内部键盘转换方法；当前锁定版本为 3.0.53。升级该依赖时需核对转换方法是否引入实例初始化状态，并运行 `test_windows_input.py`，物理按键与剪贴板仍需在实际终端验证。HTTPX 使用 `httpx[socks]`，安装时同时提供 SOCKS 代理所需依赖。
+
 ```powershell
 uv run python -X utf8 -m unittest discover -s tests -v
 ```

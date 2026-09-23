@@ -58,6 +58,7 @@ class Session:
     _valid_bytes: int = field(default=0, repr=False)
     _owner: int | None = field(default=None, repr=False)
     _storage_failed: bool = field(default=False, repr=False)
+    _history_start: int = field(default=0, repr=False)
     _busy: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def __deepcopy__(self, memo):
@@ -215,6 +216,7 @@ class Session:
             self.id = record['session_id']
         elif kind == 'session_reset':
             self.messages, self.pages, self.runs = [], {}, {}
+            self._history_start = int(record['id'])
         elif kind == 'run_started':
             # 仅最近任务需要完整运行投影；旧任务的事实仍保留在 records 中。
             previous = self.last_run
@@ -283,7 +285,15 @@ class Session:
                 'calls': len(calls)}
 
     def clear(self):
+        """开始新对话视图，禁止恢复或回读 reset 之前的内容；原记录仍保留。"""
         self.record('session_reset')
+
+    def history_details(self, record):
+        """回读同时标明原任务前提和当前状态，避免把残稿当作已完成回答。"""
+        run = self.runs.get(record.get('run_id'))
+        if run is None:
+            return {}
+        return {'run_id': run['id'], 'run_status': run['status'], 'question': run['question']}
 
     def read_record(self, entry_id: str, start: int = 0, limit: int = 24000):
         if not isinstance(entry_id, str) or not entry_id.isdecimal():
@@ -291,6 +301,8 @@ class Session:
         index = int(entry_id)-1
         if index < 0 or index >= len(self.records):
             raise ValueError('没有该记录')
+        if index < self._history_start:
+            raise ValueError('不能读取本次重置之前的记录')
         if type(start) is not int or type(limit) is not int or start < 0 or not 1 <= limit <= 24000:
             raise ValueError('读取范围不合法')
         text = json.dumps(self.records[index], ensure_ascii=False)
@@ -298,6 +310,7 @@ class Session:
             raise ValueError('起点超出记录范围')
         end = min(start+limit, len(text))
         return {'operation': 'read_history', 'status': 'success' if start == 0 and end == len(text) else 'partial',
+                **self.history_details(self.records[index]),
                 'content_kind': 'session_record', 'record_id': entry_id, 'content': text[start:end],
                 'start': start, 'end': end, 'total_characters': len(text),
                 'next_start': end if end < len(text) else None}

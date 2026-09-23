@@ -19,6 +19,39 @@ from test_agent import reply
 
 
 class CliSessionTests(unittest.TestCase):
+    def test_final_notification_and_content_errors_have_distinct_cli_outcomes(self):
+        from seekra.cli import run_question
+        from seekra.display import AgentDisplay
+        from seekra.runtime import ContentOutputError
+        config = {'DEEPSEEK_API_KEY':'fake', 'TAVILY_API_KEY':'fake', 'DEEPSEEK_MODEL':'test'}
+        original_event = AgentDisplay.event
+        for phase in ('final_answer', 'content'):
+            for error, code, state in ((ContentOutputError('输出失败'), 74, 'failed'),
+                                       (KeyboardInterrupt(), 130, 'interrupted')):
+                with self.subTest(phase=phase, error=type(error).__name__):
+                    session, out, err = Session(), io.StringIO(), io.StringIO()
+                    def event(view, name, **details):
+                        if name == 'final_answer':
+                            raise error
+                        return original_event(view, name, **details)
+                    target = 'event' if phase == 'final_answer' else 'content'
+                    replacement = event if phase == 'final_answer' else lambda *args: (_ for _ in ()).throw(error)
+                    with httpx.Client(transport=httpx.MockTransport(lambda r:reply('完整答案'))) as client, \
+                         patch.object(AgentDisplay, target, replacement), \
+                         redirect_stdout(out), redirect_stderr(err):
+                        actual = run_question('问题', client=client, config=config, session=session,
+                                              max_iterations=2, verbose=False)
+                    if phase == 'final_answer':
+                        self.assertEqual(actual, 0)
+                        self.assertEqual(session.last_run['status'], 'completed')
+                        self.assertEqual(out.getvalue(), '完整答案\n')
+                        self.assertNotIn('已停止', err.getvalue())
+                        self.assertNotIn('/continue', err.getvalue())
+                    else:
+                        self.assertEqual(actual, code)
+                        self.assertEqual(session.last_run['status'], state)
+                        self.assertEqual(session.messages, [])
+
     def test_resume_without_saved_conversations_is_an_empty_state(self):
         for args,commands in ((['--resume'],['/exit']),(['--repl'],['/resume','/exit'])):
             with tempfile.TemporaryDirectory() as directory:

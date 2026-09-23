@@ -34,6 +34,7 @@ Extract 脚本写入 `evals/runs/extract-match-20260910.json`。各脚本拒绝�
 |模型参数使用|[数量控制](evidence/search-controls-live-20260908.json)、[明确域名](evidence/search-domain-live-20260908.json)|证明能力被使用，不证明参数选择最优|
 |噪声与内容消费|[抓取计数](evidence/tavily-noise-probe-20260908.json)、[原文/清理对照](evidence/noise-answer-pair-20260908.json)|没有观察到删除界面行的准确率收益；每组一次|
 |结构化笔记引用|[固定会话对照](evidence/think-pair-20260910.json)|首请求仅 schema 不同；四组都续读，一组引用两次失败|
+|引用定位与自主使用|[实验分析](evidence/think-analysis-20260912.md)、[原始请求](evidence/references-original-20260912.json)、[正文编号](evidence/references-body-id-20260912.json)、[自主选择](evidence/note-choice-20260912.json)|编号副本可能帮助正确引用；单页续读六次均未主动调用 think，不证明复杂任务无收益|
 |复杂题的具体归因|[实际完整轨迹](evidence/boundary-20260910.json)|来源、范围、答案可逐项核对，仍有范围扩大|
 |缺失路径的首页回退|[HTTP/Extract 对照](evidence/extract-match-20260910.json)|本机直接 HTTP 也返回首页；未确定服务端内部原因|
 |CLI 与取消|[独立进程](evidence/cli-entry-20260910.json)、[PTY 观察](evidence/terminal-cancel-20260910.md)|真实连续问答及一次生成中取消；工具阻塞阶段未覆盖|

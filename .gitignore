@@ -8,3 +8,4 @@ __pycache__/
 dist/
 evals/runs/
 .seekra/
+/AGENTS.md

@@ -20,7 +20,7 @@ TOOLS = [
                 "properties": {
                     "query": {"type": "string", "description": "本次搜索词"},
                     "max_results": {"type": "integer", "minimum": 1, "maximum": 10,
-                                    "description": "本次候选结果上限，默认3；多来源比较可增加，精确定位可减少。"},
+                                    "description": "本次搜索返回的候选结果数量上限。"},
                     "include_domains": {"type": "array", "maxItems": 10, "items": {"type": "string"},
                                         "description": "可选来源域名限制，例如 api-docs.deepseek.com；仅明确域名，不含协议/路径/通配符。省略或空列表不限制；不要猜测官网域名。"}},
                 "required": ["query"],
@@ -32,7 +32,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "think_tool",
-            "description": "记录简短研究笔记：已有证据、仍缺的信息、下一步搜索或结束。不会获取新事实。",
+            "description": "记录简短研究笔记：已有证据、信息缺口和下一步行动。不会获取新事实。",
             "parameters": {
                 "type": "object",
                 "properties": {"reflection": {"type": "string", "description": "简短的研究进展与下一步"}},
@@ -132,7 +132,7 @@ class ToolRegistry:
 
 
 def default_registry(client, api_key, session, structured=False, definitions=None):
-    """现有工具作为适配器注册；历史读取始终限制在当前会话。"""
+    """现有工具作为适配器注册；历史读取受 Session 的最近 reset 边界约束。"""
     from .context import history_index
     registry = ToolRegistry()
     def execute(call, pages, known):

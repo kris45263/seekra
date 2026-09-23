@@ -9,6 +9,10 @@ class RunCancelled(KeyboardInterrupt):
     """取消不是撤销已经发生的外部效果。"""
 
 
+class ContentOutputError(OSError):
+    """正文传递失败，与普通状态展示故障分开处理。"""
+
+
 class CancellationToken:
     def __init__(self):
         self._event = threading.Event()
