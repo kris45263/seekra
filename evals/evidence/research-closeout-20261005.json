@@ -1,0 +1,881 @@
+{
+  "date": "2026-10-05",
+  "scope": "Current batch: semantic diagnostics, stage permissions, autonomous progress, real-source acceptance.",
+  "total_model_requests": 110,
+  "real_tavily_calls": 8,
+  "files": [
+    {
+      "file": "claim-focused-material-20261005.json",
+      "sha256": "934bd307471b8d638bca7d2f728b312d39f560d0fb4749d6571de4e8a9cec5c3",
+      "mode": "focused_judgment_material_comparison",
+      "calls": 2,
+      "run_statuses": [
+        {
+          "material": "full_text",
+          "status": "invalid"
+        },
+        {
+          "material": "saved_quotes",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "file": "claim-stages-20261005.json",
+      "sha256": "f29a1468f3c8d5504a9c0e319fb4e423010dc4650907398c782061aab0978bdc",
+      "mode": "real_model_extraction_judgment_revision_fixed_prior_answers",
+      "calls": 4,
+      "run_statuses": [
+        {
+          "case": "meridian",
+          "repeat": 1,
+          "stages": [
+            [
+              "extract",
+              "invalid"
+            ]
+          ]
+        },
+        {
+          "case": "meridian",
+          "repeat": 2,
+          "stages": [
+            [
+              "extract",
+              "invalid"
+            ]
+          ]
+        },
+        {
+          "case": "relay",
+          "repeat": 1,
+          "stages": [
+            [
+              "extract",
+              "invalid"
+            ]
+          ]
+        },
+        {
+          "case": "relay",
+          "repeat": 2,
+          "stages": [
+            [
+              "extract",
+              "invalid"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "file": "claim-stages-output-budget-20261005.json",
+      "sha256": "422720a314d9e73c255d9e38f02fa0a61142dc5a825c450f627ec1ea6aa9c76d",
+      "mode": "real_model_extraction_judgment_revision_fixed_prior_answers",
+      "calls": 4,
+      "run_statuses": [
+        {
+          "case": "meridian",
+          "repeat": 1,
+          "stages": [
+            [
+              "extract",
+              "completed"
+            ],
+            [
+              "judge",
+              "completed"
+            ],
+            [
+              "revise",
+              "completed"
+            ]
+          ]
+        },
+        {
+          "case": "relay",
+          "repeat": 1,
+          "stages": [
+            [
+              "extract",
+              "invalid"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "file": "closeout-live-python-20261005.json",
+      "sha256": "35adaa409439d69e2c58ddcdb6503f75eefa629269056df348a4a5c29e6d9432",
+      "mode": "real_model_real_tavily_closeout",
+      "case": "python",
+      "status": "completed",
+      "calls": 18,
+      "tool_calls": 22,
+      "progress_updates": [
+        {
+          "record_id": "63",
+          "revision": 1,
+          "content_changed": true
+        }
+      ],
+      "errors": [
+        {
+          "record_id": "51",
+          "tool": "update_research",
+          "code": "invalid_arguments",
+          "message": "finding-1：原句与保存原文不匹配；请用 read_document(document_id=\"S7-P1@108060-110602\", view=\"reference\") 核对该范围，复制对应措辞或移除尚未核实的 evidence_quotes"
+        },
+        {
+          "record_id": "57",
+          "tool": "update_research",
+          "code": "invalid_arguments",
+          "message": "finding-2：原句与保存原文不匹配；请用 read_document(document_id=\"S7-P1@23288-23706\", view=\"reference\") 核对该范围，复制对应措辞或移除尚未核实的 evidence_quotes"
+        },
+        {
+          "record_id": "69",
+          "tool": "read_document",
+          "code": "invalid_arguments",
+          "message": "引用模式需要实际 evidence_ref，不接受 start/limit；程序在引用范围内分页"
+        }
+      ],
+      "confirmed_delivered": {
+        "S1-R1": [
+          [
+            0,
+            1001
+          ]
+        ],
+        "S2-R1": [
+          [
+            0,
+            1000
+          ]
+        ],
+        "S3-R1": [
+          [
+            0,
+            997
+          ]
+        ],
+        "S4-R1": [
+          [
+            0,
+            992
+          ]
+        ],
+        "S5-R1": [
+          [
+            0,
+            302
+          ]
+        ],
+        "S6-R1": [
+          [
+            0,
+            302
+          ]
+        ],
+        "S7-P1": [
+          [
+            0,
+            1691
+          ],
+          [
+            23288,
+            24188
+          ],
+          [
+            28689,
+            29327
+          ],
+          [
+            29517,
+            29973
+          ],
+          [
+            32379,
+            32813
+          ],
+          [
+            53778,
+            54197
+          ],
+          [
+            75684,
+            76364
+          ],
+          [
+            99373,
+            105354
+          ],
+          [
+            106685,
+            107103
+          ],
+          [
+            107914,
+            110602
+          ]
+        ]
+      },
+      "progress_stage_requests": 4,
+      "provider_rebuild_selections": 18,
+      "tavily_calls": 2,
+      "finding_reference_lengths": [
+        2542,
+        418,
+        2542,
+        2542,
+        409,
+        5981,
+        2542,
+        418
+      ]
+    },
+    {
+      "file": "closeout-live-sqlite-20261005.json",
+      "sha256": "eb2d7fbbc9498420a12199e6a3524043f8db1c810ea513da8d1eea2b6c9270b9",
+      "mode": "real_model_real_tavily_closeout",
+      "case": "sqlite",
+      "status": "completed",
+      "calls": 11,
+      "tool_calls": 15,
+      "progress_updates": [
+        {
+          "record_id": "53",
+          "revision": 1,
+          "content_changed": true
+        },
+        {
+          "record_id": "71",
+          "revision": 2,
+          "content_changed": true
+        }
+      ],
+      "errors": [],
+      "confirmed_delivered": {
+        "S1-R1": [
+          [
+            0,
+            1112
+          ]
+        ],
+        "S2-R1": [
+          [
+            0,
+            1021
+          ]
+        ],
+        "S3-R1": [
+          [
+            0,
+            1200
+          ]
+        ],
+        "S4-R1": [
+          [
+            0,
+            1200
+          ]
+        ],
+        "S5-R1": [
+          [
+            0,
+            357
+          ]
+        ],
+        "S6-R1": [
+          [
+            0,
+            398
+          ]
+        ],
+        "S7-R1": [
+          [
+            0,
+            1200
+          ]
+        ],
+        "S8-R1": [
+          [
+            0,
+            160
+          ]
+        ],
+        "S9-R1": [
+          [
+            0,
+            142
+          ]
+        ],
+        "S10-R1": [
+          [
+            0,
+            800
+          ]
+        ],
+        "S11-R1": [
+          [
+            0,
+            1065
+          ]
+        ],
+        "S12-R1": [
+          [
+            0,
+            138
+          ]
+        ],
+        "S13-P1": [
+          [
+            0,
+            1608
+          ],
+          [
+            16500,
+            20500
+          ],
+          [
+            26179,
+            28128
+          ]
+        ],
+        "S2-P1": [
+          [
+            0,
+            1267
+          ],
+          [
+            7584,
+            10634
+          ]
+        ],
+        "S3-P1": [
+          [
+            0,
+            1055
+          ],
+          [
+            7967,
+            13027
+          ]
+        ],
+        "S14-R1": [
+          [
+            0,
+            662
+          ]
+        ],
+        "S15-R1": [
+          [
+            0,
+            662
+          ]
+        ],
+        "S16-R1": [
+          [
+            0,
+            662
+          ]
+        ],
+        "S17-R1": [
+          [
+            0,
+            366
+          ]
+        ],
+        "S18-R1": [
+          [
+            0,
+            1200
+          ]
+        ]
+      },
+      "progress_stage_requests": 1,
+      "provider_rebuild_selections": 11,
+      "tavily_calls": 6,
+      "finding_reference_lengths": [
+        1010,
+        3050,
+        5060,
+        1949,
+        1267,
+        5060,
+        662,
+        398,
+        1200,
+        1595
+      ]
+    },
+    {
+      "file": "progress-fresh-meridian-20261005.json",
+      "sha256": "b92c462ecce435d84026b627b7788a26c587282822cf4f4d3e71a769c39a24cd",
+      "mode": "real_model_fresh_default_fixed_document_research",
+      "case": "meridian",
+      "status": "completed",
+      "calls": 5,
+      "tool_calls": 9,
+      "progress_updates": [
+        {
+          "record_id": "35",
+          "revision": 1,
+          "content_changed": true
+        }
+      ],
+      "errors": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            1699
+          ],
+          [
+            13252,
+            13522
+          ]
+        ]
+      },
+      "progress_stage_requests": 0,
+      "provider_rebuild_selections": 5,
+      "tavily_calls": 0
+    },
+    {
+      "file": "progress-fresh-vault-20261005.json",
+      "sha256": "383a8c058d10717d2b30ef529fb9e9a86e39bb4b591ebc44350247f12dba0f7b",
+      "mode": "real_model_fresh_default_fixed_document_research",
+      "case": "vault",
+      "status": "completed",
+      "calls": 8,
+      "tool_calls": 13,
+      "progress_updates": [
+        {
+          "record_id": "55",
+          "revision": 1,
+          "content_changed": true
+        }
+      ],
+      "errors": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            5359
+          ],
+          [
+            5500,
+            9391
+          ],
+          [
+            9500,
+            13404
+          ]
+        ]
+      },
+      "progress_stage_requests": 0,
+      "provider_rebuild_selections": 8,
+      "tavily_calls": 0
+    },
+    {
+      "file": "semantic-guidance-meridian-semantic-20261005.json",
+      "sha256": "a512aa627d137a2c3d246e84df321a6c70f4f4fa6c8c1c266a17fa96635ac729",
+      "mode": "real_model_fresh_semantic_guidance_trial",
+      "case": "meridian",
+      "status": "completed",
+      "calls": 5,
+      "tool_calls": 6,
+      "progress_updates": [
+        {
+          "record_id": "29",
+          "revision": 1,
+          "content_changed": true
+        }
+      ],
+      "errors": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            1699
+          ],
+          [
+            13296,
+            13522
+          ]
+        ]
+      },
+      "progress_stage_requests": 0,
+      "provider_rebuild_selections": 5,
+      "tavily_calls": 0
+    },
+    {
+      "file": "semantic-guidance-relay-current-20261005.json",
+      "sha256": "b5f03ea2f6ab9364d875059e15638d1bc5531e0febbd643c8f0375d55f48b050",
+      "mode": "real_model_fresh_semantic_guidance_trial",
+      "case": "relay",
+      "status": "completed",
+      "calls": 3,
+      "tool_calls": 2,
+      "progress_updates": [
+        {
+          "record_id": "13",
+          "revision": 1,
+          "content_changed": true
+        }
+      ],
+      "errors": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            485
+          ]
+        ]
+      },
+      "progress_stage_requests": 0,
+      "provider_rebuild_selections": 3,
+      "tavily_calls": 0
+    },
+    {
+      "file": "semantic-guidance-relay-semantic-20261005.json",
+      "sha256": "8e9fa7104fa8c8ad9669f79cb24e1799a9ee9f73d40d75cd8f42a4afef6831aa",
+      "mode": "real_model_fresh_semantic_guidance_trial",
+      "case": "relay",
+      "status": "completed",
+      "calls": 3,
+      "tool_calls": 2,
+      "progress_updates": [
+        {
+          "record_id": "13",
+          "revision": 1,
+          "content_changed": true
+        }
+      ],
+      "errors": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            485
+          ]
+        ]
+      },
+      "progress_stage_requests": 0,
+      "provider_rebuild_selections": 3,
+      "tavily_calls": 0
+    },
+    {
+      "file": "semantic-guidance-vault-semantic-20261005.json",
+      "sha256": "e9580687063a2cff6480e4bd9adbe855f3193ee3df6a45dad7f3c7d28c1e6ff4",
+      "mode": "real_model_fresh_semantic_guidance_trial",
+      "case": "vault",
+      "status": "completed",
+      "calls": 7,
+      "tool_calls": 6,
+      "progress_updates": [
+        {
+          "record_id": "37",
+          "revision": 1,
+          "content_changed": true
+        }
+      ],
+      "errors": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            13404
+          ]
+        ]
+      },
+      "progress_stage_requests": 0,
+      "provider_rebuild_selections": 7,
+      "tavily_calls": 0
+    },
+    {
+      "file": "stage-frame-meridian-compact-20261005.json",
+      "sha256": "327e9a32940232f83b0de4028c2d78bbccc49ae671cbc86e1570cd9a6ee10b62",
+      "mode": "real_model_fixed_checkpoint_stage_frame_comparison",
+      "case": "meridian",
+      "status": "completed",
+      "calls": 2,
+      "tool_calls": 3,
+      "progress_updates": [
+        {
+          "record_id": "34",
+          "revision": 1,
+          "content_changed": true
+        }
+      ],
+      "errors": [
+        {
+          "record_id": "26",
+          "tool": "find_in_documents",
+          "code": "progress_required",
+          "message": "当前处于临时整理阶段，请先用 update_research 保存阶段进展，再继续普通搜索与阅读。本次操作未执行；保留待读入口和未核实事项。普通工具在保存后恢复。可以核对已有引用，或在信息足够时直接回答。"
+        },
+        {
+          "record_id": "28",
+          "tool": "find_in_documents",
+          "code": "progress_required",
+          "message": "当前处于临时整理阶段，请先用 update_research 保存阶段进展，再继续普通搜索与阅读。本次操作未执行；保留待读入口和未核实事项。普通工具在保存后恢复。可以核对已有引用，或在信息足够时直接回答。"
+        }
+      ],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            3770
+          ],
+          [
+            13296,
+            13522
+          ]
+        ]
+      },
+      "progress_stage_requests": 2,
+      "provider_rebuild_selections": 2,
+      "tavily_calls": 0
+    },
+    {
+      "file": "stage-frame-meridian-current-20261005.json",
+      "sha256": "230e45e810b33b610d0ca16067d4dee3a202802e3c0914cfc90ef6aed1bd2eb2",
+      "mode": "real_model_fixed_checkpoint_stage_frame_comparison",
+      "case": "meridian",
+      "status": "completed",
+      "calls": 11,
+      "tool_calls": 13,
+      "progress_updates": [
+        {
+          "record_id": "34",
+          "revision": 1,
+          "content_changed": true
+        },
+        {
+          "record_id": "58",
+          "revision": 2,
+          "content_changed": true
+        },
+        {
+          "record_id": "66",
+          "revision": 3,
+          "content_changed": true
+        },
+        {
+          "record_id": "72",
+          "revision": 4,
+          "content_changed": true
+        },
+        {
+          "record_id": "78",
+          "revision": 5,
+          "content_changed": true
+        },
+        {
+          "record_id": "84",
+          "revision": 6,
+          "content_changed": true
+        },
+        {
+          "record_id": "90",
+          "revision": 7,
+          "content_changed": true
+        }
+      ],
+      "errors": [
+        {
+          "record_id": "26",
+          "tool": "find_in_documents",
+          "code": "progress_required",
+          "message": "当前处于临时整理阶段，请先用 update_research 保存阶段进展，再继续普通搜索与阅读。本次操作未执行；保留待读入口和未核实事项。普通工具在保存后恢复。可以核对已有引用，或在信息足够时直接回答。"
+        },
+        {
+          "record_id": "28",
+          "tool": "find_in_documents",
+          "code": "progress_required",
+          "message": "当前处于临时整理阶段，请先用 update_research 保存阶段进展，再继续普通搜索与阅读。本次操作未执行；保留待读入口和未核实事项。普通工具在保存后恢复。可以核对已有引用，或在信息足够时直接回答。"
+        },
+        {
+          "record_id": "46",
+          "tool": "read_section",
+          "code": "progress_required",
+          "message": "当前处于临时整理阶段，请先用 update_research 保存阶段进展，再继续普通搜索与阅读。本次操作未执行；保留待读入口和未核实事项。普通工具在保存后恢复。可以核对已有引用，或在信息足够时直接回答。"
+        }
+      ],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            3770
+          ],
+          [
+            13296,
+            13522
+          ]
+        ]
+      },
+      "progress_stage_requests": 10,
+      "provider_rebuild_selections": 11,
+      "tavily_calls": 0
+    },
+    {
+      "file": "stage-frame-vault-compact-20261005.json",
+      "sha256": "fdecaabdec415f8eaebc2d7b051c83d2d571955a6c58d10d2bb2e04a62b6f96a",
+      "mode": "real_model_fixed_checkpoint_stage_frame_comparison",
+      "case": "vault",
+      "status": "interrupted",
+      "calls": 18,
+      "tool_calls": 24,
+      "progress_updates": [
+        {
+          "record_id": "36",
+          "revision": 1,
+          "content_changed": true
+        },
+        {
+          "record_id": "84",
+          "revision": 2,
+          "content_changed": true
+        },
+        {
+          "record_id": "98",
+          "revision": 3,
+          "content_changed": true
+        }
+      ],
+      "errors": [
+        {
+          "record_id": "48",
+          "tool": "read_document",
+          "code": "invalid_arguments",
+          "message": "游标不属于当前会话或读取操作"
+        },
+        {
+          "record_id": "78",
+          "tool": "update_research",
+          "code": "invalid_arguments",
+          "message": "add_gap 参数不合法：缺少 []，多余 ['gap_ids']。本批未保存，版本仍为 1。"
+        }
+      ],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            7951
+          ]
+        ]
+      },
+      "progress_stage_requests": 18,
+      "provider_rebuild_selections": 18,
+      "tavily_calls": 0
+    },
+    {
+      "file": "stage-frame-vault-current-20261005.json",
+      "sha256": "71ecdf479b5aae389d45fa5dfd49144c10fc091ba71d3ee8ca19b9b7d710bcb5",
+      "mode": "real_model_fixed_checkpoint_stage_frame_comparison",
+      "case": "vault",
+      "status": "completed",
+      "calls": 9,
+      "tool_calls": 8,
+      "progress_updates": [
+        {
+          "record_id": "28",
+          "revision": 1,
+          "content_changed": true
+        },
+        {
+          "record_id": "46",
+          "revision": 2,
+          "content_changed": true
+        },
+        {
+          "record_id": "58",
+          "revision": 3,
+          "content_changed": true
+        },
+        {
+          "record_id": "70",
+          "revision": 4,
+          "content_changed": true
+        }
+      ],
+      "errors": [
+        {
+          "record_id": "40",
+          "tool": "read_section",
+          "code": "progress_required",
+          "message": "当前处于临时整理阶段，请先用 update_research 保存阶段进展，再继续普通搜索与阅读。本次操作未执行；保留待读入口和未核实事项。普通工具在保存后恢复。可以核对已有引用，或在信息足够时直接回答。"
+        }
+      ],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            13404
+          ]
+        ]
+      },
+      "progress_stage_requests": 5,
+      "provider_rebuild_selections": 9,
+      "tavily_calls": 0
+    }
+  ],
+  "production_changes": [
+    "checkpoint.present_actions marks review_action, question_action and source_history_action with phase availability."
+  ],
+  "experimental_changes_not_adopted": [
+    "Three-stage extraction/judgment/revision",
+    "Raised16384-token output budget for that experiment",
+    "Compact restricted-phase system",
+    "Generic semantic-necessity guidance replacement"
+  ],
+  "verification": {
+    "command": "uv run --locked python -X utf8 -m unittest discover -s tests -q",
+    "tests": 250,
+    "passed": 249,
+    "skipped": 1
+  },
+  "limits": [
+    "Fixed-source trials and real-source tasks evaluated separately.",
+    "No net/stable progress-benefit estimate; fresh runs demonstrate observable usage only.",
+    "No trustworthy automatic semantic validation or completed semantic repair established.",
+    "Source title/metadata and full retrieval do not prove complete body delivery or valid interpretation."
+  ],
+  "structured_expression_prototype": {
+    "files": [
+      {
+        "file": "structured-answer-20261005.json",
+        "sha256": "85bdc83f6d5aecee5d998c4287581458140107ff6051b70cecdfd4a675ff2a64"
+      },
+      {
+        "file": "structured-answer-fixed-20261005.json",
+        "sha256": "a3b4f94e5b0f936c27bbe642a2555fb46bbe3b6c76f853e91f527060932656ff"
+      },
+      {
+        "file": "structured-answer-network-retest-20261005.json",
+        "sha256": "20358db6d7686b97f19c285357f95b0506f0c6ec06be729bd4c10098418ab0b9"
+      },
+      {
+        "file": "structured-answer-id-normalization-20261005.json",
+        "sha256": "1faa520b635fbaebe36433a404b34ae73335bb647829545daa81dde59cbabd37"
+      }
+    ],
+    "invalid_input_calls": 6,
+    "correct_input_initial_calls": 6,
+    "network_retest_calls": 2,
+    "model_requests": 14,
+    "complete_reviewable_answers": 6,
+    "strict_contract_answers": 5,
+    "numeric_identifier_normalization_answers": 1,
+    "default_output_changed": false,
+    "mechanical_result": "Original evidence sections rendered from actual indexed source paragraphs, not model rewrites; references/links validated.",
+    "semantic_limits": [
+      "Explicit unknown links do not prove all implicit dependencies listed.",
+      "One answer impact suggests accepting overrun risk could change action; unknown failure mechanism does not remove stated validation obligation.",
+      "Irreversible anonymization proposed as alternative to removal is not explicitly authorized by source.",
+      "Full fictional sources supplied, not yet end-to-end progressive research or streaming acceptance."
+    ],
+    "validity": "First input assembler dropped non-heading bodies attached to headings; all initial6 calls excluded. Corrected assembler checked all non-heading source lines against ranges."
+  },
+  "total_model_requests_including_structured_trials": 124
+}

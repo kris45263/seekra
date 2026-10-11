@@ -36,6 +36,9 @@ def stream_chat_completion(
     tools: list[dict] | None = None,
     on_usage: Callable[[dict], None] | None = None,
     cancel=None,
+    thinking: bool = False,
+    reasoning_effort: str = 'high',
+    max_output_tokens: int = 8192,
 ) -> dict:
     """接收一轮完整 assistant 响应，不修改历史、不打印、不重试。
 
@@ -57,12 +60,15 @@ def stream_chat_completion(
     reasoning = []
     calls = {}
     finished = None
+    reported_model, fingerprint = None, None
     with client.stream(
         "POST", "https://api.deepseek.com/chat/completions",
         headers={"Authorization": f"Bearer {api_key}"},
-        json={"model": model, "messages": messages, "thinking": {"type": "disabled"},
-              "max_tokens": 8192, "stream": True,
-              **({"tools": tools, "tool_choice": "auto"} if tools else {})},
+        json={"model": model, "messages": messages,
+              "thinking": {"type": "enabled" if thinking else "disabled"},
+              "max_tokens": max_output_tokens, "stream": True,
+              **({"reasoning_effort": reasoning_effort} if thinking else {}),
+              **({"tools": tools, **({} if thinking else {"tool_choice": "auto"})} if tools else {})},
         timeout=60,
     ) as response, (cancel.watch(response.close) if cancel is not None else nullcontext()):
         response.raise_for_status()
@@ -92,13 +98,18 @@ def stream_chat_completion(
                     message['tool_calls'] = ordered
                 if reasoning and tools:
                     message['reasoning_content'] = ''.join(reasoning)
-                return {'message': message, 'finish_reason': finished, 'usage': usage}
+                return {'message': message, 'finish_reason': finished, 'usage': usage,
+                        'response_model': reported_model, 'system_fingerprint': fingerprint}
             try:
                 chunk = json.loads(data)
             except ValueError:
                 raise StreamProtocolError("DeepSeek 流事件不是合法 JSON。") from None
             if not isinstance(chunk, dict) or "error" in chunk:
                 raise StreamProtocolError("DeepSeek 返回异常流事件。")
+            if isinstance(chunk.get('model'), str):
+                reported_model = chunk['model']
+            if isinstance(chunk.get('system_fingerprint'), str):
+                fingerprint = chunk['system_fingerprint']
             if isinstance(chunk.get('usage'), dict):
                 usage = chunk['usage']
                 if on_usage is not None:

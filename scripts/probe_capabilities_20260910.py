@@ -2,17 +2,21 @@
 
 import argparse
 from copy import deepcopy
+from contextlib import nullcontext
 from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
 import time
+from unittest.mock import patch
 
 import httpx
 
 from seekra.agent import run_agent
 from seekra.cli import read_config
 from seekra.session import Session
+from seekra.runtime import CancellationToken
+from seekra.tools import legacy_tool_definitions
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -47,23 +51,28 @@ def main():
         """只用回调和请求钩子采集；循环、工具和 Session 均来自主实现。"""
         session = session if session is not None else Session()
         item = {'label': label, 'question': question, 'structured_think': structured,
-                'max_iterations': limit, 'requests': [], 'events': []}
+                'external_decision_budget': limit, 'requests': [], 'events': []}
         record['runs'].append(item)
         start = time.monotonic()
 
         def capture(request):
             item['requests'].append({'url': str(request.url), 'body': json.loads(request.content)})
 
+        cancel = CancellationToken()
         def event(name, **details):
             item['events'].append({'event': name, 'seconds': round(time.monotonic()-start, 3), **details})
+            if name == 'tool_result' and session.last_run['calls'] >= limit and not session.last_run['pending']:
+                cancel.cancel()
             if name in ('model_call', 'tool_call', 'final_answer', 'end'):
                 print(label, name, details.get('round', ''), flush=True)
 
         try:
-            with httpx.Client(event_hooks={'request': [capture]}) as client:
+            compatibility = (patch('seekra.tools.tool_definitions', legacy_tool_definitions)
+                             if args.case == 'think-pair' else nullcontext())
+            with compatibility, httpx.Client(event_hooks={'request': [capture]}) as client:
                 item['answer'] = run_agent(question, client=client, model=config['DEEPSEEK_MODEL'],
                     deepseek_api_key=config['DEEPSEEK_API_KEY'], tavily_api_key=config['TAVILY_API_KEY'],
-                    session=session, structured_think=structured, max_iterations=limit, on_event=event)
+                    session=session, structured_think=structured, cancel=cancel, on_event=event)
         except (Exception, KeyboardInterrupt) as exc:
             item['error'] = type(exc).__name__
         item['seconds'] = round(time.monotonic()-start, 3)
@@ -93,7 +102,7 @@ def main():
                 deepcopy(seed), structured=structured, limit=6)
         firsts = [deepcopy(r['requests'][0]['body']) for r in record['runs'][1:]]
         for body in firsts:
-            body['tools'][1]['function'].pop('parameters')
+            next(d['function'] for d in body['tools'] if d['function']['name']=='think_tool').pop('parameters')
         assert all(body == firsts[0] for body in firsts), '实验输入存在非 schema 差异'
         record['same_first_request_except_think_schema'] = True
         record['common_request_sha256'] = hashlib.sha256(json.dumps(firsts[0], sort_keys=True).encode()).hexdigest()

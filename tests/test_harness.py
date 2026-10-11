@@ -6,6 +6,7 @@ import json
 import io
 from contextlib import redirect_stderr
 import unittest
+from unittest.mock import patch
 
 import httpx
 
@@ -17,10 +18,21 @@ from test_agent import call, reply
 
 
 class HarnessTests(unittest.TestCase):
+    def test_model_page_acquisition_accepts_only_url_and_rejects_foreign_start(self):
+        from seekra.tools import default_registry
+        session = Session()
+        with httpx.Client(transport=httpx.MockTransport(lambda request: self.fail('错误参数不应联网'))) as client:
+            registry = default_registry(client, 'fake', session)
+            definition = next(d['function'] for d in registry.definitions if d['function']['name'] == 'read_page')
+            self.assertEqual(set(definition['parameters']['properties']), {'url'})
+            result = json.loads(registry.execute(call('read_page', {'url': 'https://example.org/3.13', 'start': 5068}), {}, {}))
+            self.assertEqual(result['error_code'], 'invalid_arguments')
+            self.assertIn('read_document', result['error'])
+
     """只替换网络传输，观察真实消息与工具结果。"""
 
-    def test_read_page_and_budget_are_visible(self):
-        """正文、请求地址和预算进入模型上下文；完整答案才提交会话。"""
+    def test_read_page_and_call_count_are_visible(self):
+        """正文、请求地址和累计调用进入模型上下文；完整答案才提交会话。"""
         history = []
         def handler(request):
             body = json.loads(request.content)
@@ -31,19 +43,20 @@ class HarnessTests(unittest.TestCase):
             history.append(body["messages"])
             self.assertIn("read_page", [t["function"]["name"] for t in body["tools"]])
             if len(history) == 1:
-                self.assertIn("本次之后最多还能调用 1 次", body["messages"][0]["content"])
+                self.assertIn("当前第 1 次模型调用", body["messages"][0]["content"])
                 return reply(calls=[call("read_page", {"url": "https://example.org/v1"})])
             result = json.loads(body["messages"][-1]["content"])
             self.assertEqual(result["status"], "success")
-            self.assertEqual(result["content_kind"], "extracted_text")
+            self.assertEqual(result["content_kind"], "page_text")
+            self.assertIn('document_id', result)
             self.assertEqual(result["content"], "仅在条件 A 下成立")
             self.assertIsNone(result["final_url"])
-            self.assertIn("本次之后最多还能调用 0 次", body["messages"][0]["content"])
+            self.assertIn("当前第 2 次模型调用", body["messages"][0]["content"])
             return reply("有条件成立")
         session = Session()
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             self.assertEqual(run_agent("问题", client=client, model="m", deepseek_api_key="d",
-                             tavily_api_key="t", session=session, max_iterations=2), "有条件成立")
+                             tavily_api_key="t", session=session), "有条件成立")
 
     def test_page_ranges_reuse_snapshot(self):
         """长文本可继续读同一快照，不静默丢掉尾部或重复联网。"""
@@ -93,13 +106,18 @@ class HarnessTests(unittest.TestCase):
         """读取快照也随当前问题回退，避免状态部分保存。"""
         session = Session()
         before = deepcopy(session)
+        calls = 0
         def handler(request):
+            nonlocal calls
             if request.url.path == "/extract":
                 return httpx.Response(200, json={"results": [{"url": "https://example.org", "raw_content": "资料"}], "failed_results": []})
+            calls += 1
+            if calls > 1:
+                raise KeyboardInterrupt()
             return reply(calls=[call("read_page", {"url": "https://example.org"})])
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-            with self.assertRaises(RuntimeError):
-                run_agent("问题", client=client, model="m", deepseek_api_key="d", tavily_api_key="t", session=session, max_iterations=1)
+            with self.assertRaises(KeyboardInterrupt):
+                run_agent("问题", client=client, model="m", deepseek_api_key="d", tavily_api_key="t", session=session)
         self.assertEqual(session.messages, before.messages)
         self.assertEqual(session.pages, before.pages)
         self.assertTrue(session.records)  # 未完成输入的执行事实保留，不进入完成历史。
@@ -119,8 +137,10 @@ class HarnessTests(unittest.TestCase):
             self.assertEqual(result["content_kind"], "model_note")
             self.assertEqual(result["note"], args)
 
-    def test_read_display_does_not_change_requests(self):
+    @patch('seekra.session.datetime')
+    def test_read_display_does_not_change_requests(self, clock):
         """读取模式的显示仍与模型输入分离，正文只在该次结果中展示。"""
+        clock.now.return_value.isoformat.return_value = '2026-09-30T00:00:00+00:00'
         runs = []
         for verbose in (False, True):
             requests = []

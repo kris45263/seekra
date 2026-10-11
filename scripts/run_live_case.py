@@ -71,7 +71,7 @@ def main() -> int:
                           "content": result.get("content"),
                           "query": result.get("query"), "search_parameters": result.get("search_parameters"),
                           "sources": [{"url": row["url"], "title": row["title"]} for row in result.get("results", [])]})
-    record = {**case, "model": config["DEEPSEEK_MODEL"], "streaming": True, "max_iterations": 12, "model_calls": model_calls,
+    record = {**case, "model": config["DEEPSEEK_MODEL"], "streaming": True, "model_calls": model_calls,
               "seconds": round(time.monotonic() - start, 2), "answer": answer, "error": error, "trace": trace,
               "judgment": "待人工按 docs/validation.md 核对；正常退出不等于答案正确。"}
     text = json.dumps(record, ensure_ascii=False, indent=2)

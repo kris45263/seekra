@@ -20,10 +20,13 @@ uv run seekra --repl
 
 |修改目标|主要模块|需要关注的回归|
 |---|---|---|
-|模型决策循环、预算|`src/seekra/agent.py`|请求历史、工具配对、超限与失败回退|
+|模型决策循环|`src/seekra/agent.py`|请求历史、工具配对、结束与失败回退|
+|上下文预算与恢复|`context.py`、`checkpoint.py`、`provider_context.py`|实际请求内容、阶段权限、检查点和续接数据缺失后的重建|
 |流式协议|`src/seekra/deepseek.py`|分片、DONE、工具组装、连接释放|
 |工具接口与校验|`src/seekra/tools.py`、`operations.py`|非法参数不联网、操作结果语义|
 |Search/Extract|`src/seekra/retrieval.py`|结果整理、失败原因、分页与快照|
+|资料与研究进展|`documents.py`、`delivery.py`、`research.py`、`progress.py`|快照与引用范围、交付裁剪、进展版本和局部更新|
+|显式终稿|`src/seekra/answers.py`|原文校验、自由排版、依赖声明和持久交付；不认证语义|
 |终端展示|`src/seekra/display.py`|正文一次输出、请求不变、诊断故障隔离|
 |命令与会话入口|`src/seekra/cli.py`|配置来源、独立目录安装入口、REPL|
 

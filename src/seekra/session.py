@@ -10,6 +10,9 @@ from pathlib import Path
 import threading
 from uuid import uuid4
 
+from .documents import Documents, canonical
+from .research import remember_delivery
+
 RECORD_KINDS = {
     'session_created', 'session_reset', 'run_started', 'run_resumed', 'context_selected',
     'model_started', 'model_usage', 'model_completed', 'tool_started', 'tool_completed',
@@ -60,6 +63,10 @@ class Session:
     _storage_failed: bool = field(default=False, repr=False)
     _history_start: int = field(default=0, repr=False)
     _busy: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    _documents: Documents = field(default_factory=Documents, repr=False)
+    _provider_states: dict = field(default_factory=dict, repr=False)
+    _message_records: dict = field(default_factory=dict, repr=False)
+    _continuation_required: set = field(default_factory=set, repr=False)
 
     def __deepcopy__(self, memo):
         """实验副本独立，不共享文件和锁。"""
@@ -123,6 +130,10 @@ class Session:
     @property
     def last_run(self):
         return next(reversed(self.runs.values()), None)
+
+    @property
+    def documents(self):
+        return self._documents.sync(self.records, self.id, self.secrets)
 
     @contextmanager
     def exclusive(self):
@@ -188,10 +199,23 @@ class Session:
                 return self.record(kind, **data)
         record = _clean({'id': str(len(self.records)+1), 'kind': kind,
                          'time': datetime.now(timezone.utc).isoformat(), **deepcopy(data)})
+        if kind == 'tool_completed':
+            record = self.documents.prepare(record, self.secrets)
+            if record.get('final_output_field') is not None:
+                record['result'] = json.dumps(canonical(json.loads(record['result']), self.secrets), ensure_ascii=False)
+                record['answer_version'] = 1
+            if record.get('tool_name') == 'update_research':
+                record['result'] = json.dumps(canonical(json.loads(record['result']), self.secrets), ensure_ascii=False)
+                record['research_version'] = json.loads(record['result']).get('schema_version',1)
         if self.path:
             persisted = dict(record)
-            for key in {'question', 'system', 'message', 'result', 'page_updates', 'error', 'partial_content', 'content'}:
+            for key in {'question', 'system', 'message', 'result', 'page_updates', 'error', 'partial_content',
+                        'content', 'replacements', 'provider_window', 'recovery_sources', 'provider'}:
                 if key in persisted:
+                    if ((record.get('documents_version') == 1 and key in {'result', 'page_updates'})
+                            or (record.get('research_version') in {1,2} and key == 'result')
+                            or (record.get('answer_version') == 1 and key == 'result')):
+                        continue  # 资料与阅读视图已按同一规范文本完成遮蔽。
                     persisted[key] = _redact_text(persisted[key], self.secrets)
             text = json.dumps(persisted, ensure_ascii=False)
             encoded = (text+'\n').encode('utf-8')
@@ -216,6 +240,9 @@ class Session:
             self.id = record['session_id']
         elif kind == 'session_reset':
             self.messages, self.pages, self.runs = [], {}, {}
+            self._provider_states.clear()
+            self._message_records.clear()
+            self._continuation_required.clear()
             self._history_start = int(record['id'])
         elif kind == 'run_started':
             # 仅最近任务需要完整运行投影；旧任务的事实仍保留在 records 中。
@@ -225,6 +252,12 @@ class Session:
                 previous.pop('pages', None)
                 previous.pop('pending', None)
                 previous.pop('started_tools', None)
+                previous.pop('delivered', None)
+                previous.pop('visible', None)
+                previous.pop('_context_selection', None)
+                previous.pop('_request_messages', None)
+                previous.pop('_recovery_sources', None)
+                previous.pop('provider_window', None)
             messages = list(self.messages)
             system = {'role': 'system', 'content': record['system']}
             if messages:
@@ -235,20 +268,46 @@ class Session:
             self.runs[record['run_id']] = {
                 'id': record['run_id'], 'question': record['question'], 'config': record['config'],
                 'status': 'running', 'messages': messages, 'pages': deepcopy(self.pages),
-                'calls': 0, 'pending': {}, 'started_tools': set(), 'latest_usage': None}
+                'calls': 0, 'pending': {}, 'started_tools': set(), 'latest_usage': None,
+                'research': None, 'delivered': {}}
         elif 'run_id' in record:
             run = self.runs[record['run_id']]
             if kind == 'run_resumed':
                 run['status'] = 'running'
+            elif kind == 'context_selected':
+                run['_context_selection'] = record
+                if record.get('checkpoint_record_id'):
+                    run['checkpoint_record_id'] = record['checkpoint_record_id']
             elif kind == 'model_started':
                 run['calls'] += 1
                 run['latest_usage'] = None
                 run['messages'][0] = {'role':'system','content':record['system']}
+                selection = run.pop('_context_selection', {})
+                if 'progress_stage' in selection:
+                    run['progress_stage'] = deepcopy(selection['progress_stage'])
+                if 'provider_window' in selection:
+                    run['provider_window'] = deepcopy(selection['provider_window'])
+                run['_request_messages'] = [selection.get('replacements', {}).get(str(i), run['messages'][i])
+                                            for i in selection.get('message_indices', [])]
+                run['_recovery_sources'] = selection.get('recovery_sources', [])
+                if 'message_indices' in selection:
+                    retained = {self._message_records.get(id(run['messages'][i]))
+                                for i in selection['message_indices'] if run['messages'][i]['role'] == 'assistant'}
+                    self._provider_states = {key: value for key, value in self._provider_states.items() if key in retained}
             elif kind == 'model_usage':
                 run['latest_usage'] = record['usage']
             elif kind == 'model_completed':
+                # 收到完整响应才确认该请求的交付，发送前失败不能算模型已取得依据。
+                received = run.pop('_request_messages', []) + [{'role':'tool','content':json.dumps(source,ensure_ascii=False)}
+                                                             for source in run.pop('_recovery_sources', [])]
+                run['visible'] = {}
+                remember_delivery(run['visible'],received)
+                remember_delivery(run['delivered'],received)
                 message = record['message']
                 run['messages'].append(message)
+                self._message_records[id(message)] = record['id']
+                if record.get('provider_continuation') is not None:
+                    self._continuation_required.add(record['id'])
                 run['pending'] = {c['id']: c for c in message.get('tool_calls') or []}
             elif kind == 'tool_started':
                 run['started_tools'].add(record['call_id'])
@@ -256,12 +315,21 @@ class Session:
                 run['messages'].append({'role': 'tool', 'tool_call_id': record['call_id'], 'content': record['result']})
                 run['pending'].pop(record['call_id'], None)
                 run['started_tools'].discard(record['call_id'])
+                if record.get('research_version') is not None:
+                    if record['research_version'] not in {1,2}:
+                        raise ValueError('不支持的研究进展版本')
+                    result = json.loads(record['result'])
+                    if result.get('operation') == 'update_research' and result.get('status') == 'success':
+                        run['research'] = result
+                        run['research_record_id'] = record['id']
                 for url, page in record['page_updates'].items():
                     if page is None:
                         run['pages'].pop(url, None)
                     else:
                         run['pages'][url] = page
             elif kind == 'run_ended':
+                run.pop('_request_messages', None)
+                run.pop('_recovery_sources', None)
                 run['status'] = record['status']
                 run['error'] = record.get('error')
                 run['error_code'] = record.get('error_code')
@@ -277,12 +345,16 @@ class Session:
                 calls[key] = None
             elif record['kind'] == 'model_usage':
                 calls[key] = record['usage']
-        return {'input_tokens': sum((u or {}).get('input_tokens') or 0 for u in calls.values()),
+        result = {'input_tokens': sum((u or {}).get('input_tokens') or 0 for u in calls.values()),
                 'output_tokens': sum((u or {}).get('output_tokens') or 0 for u in calls.values()),
                 'input_reports': sum(u is not None and u.get('input_tokens') is not None for u in calls.values()),
                 'output_reports': sum(u is not None and u.get('output_tokens') is not None for u in calls.values()),
                 'missing_calls': sum(not u or u.get('input_tokens') is None or u.get('output_tokens') is None for u in calls.values()),
                 'calls': len(calls)}
+        if any(u and 'reasoning_tokens' in u for u in calls.values()):
+            reported = [u['reasoning_tokens'] for u in calls.values() if u and u.get('reasoning_tokens') is not None]
+            result.update(reasoning_tokens=sum(reported) if reported else None, reasoning_reports=len(reported))
+        return result
 
     def clear(self):
         """开始新对话视图，禁止恢复或回读 reset 之前的内容；原记录仍保留。"""
@@ -295,7 +367,8 @@ class Session:
             return {}
         return {'run_id': run['id'], 'run_status': run['status'], 'question': run['question']}
 
-    def read_record(self, entry_id: str, start: int = 0, limit: int = 24000):
+    def record_entry(self, entry_id: str):
+        """在重置边界内取得一条事实记录；不接受文件路径。"""
         if not isinstance(entry_id, str) or not entry_id.isdecimal():
             raise ValueError('记录编号必须是当前会话中的数字字符串')
         index = int(entry_id)-1
@@ -303,14 +376,18 @@ class Session:
             raise ValueError('没有该记录')
         if index < self._history_start:
             raise ValueError('不能读取本次重置之前的记录')
+        return deepcopy(self.records[index])
+
+    def read_record(self, entry_id: str, start: int = 0, limit: int = 24000):
+        record = self.record_entry(entry_id)
         if type(start) is not int or type(limit) is not int or start < 0 or not 1 <= limit <= 24000:
             raise ValueError('读取范围不合法')
-        text = json.dumps(self.records[index], ensure_ascii=False)
+        text = json.dumps(record, ensure_ascii=False)
         if start >= len(text):
             raise ValueError('起点超出记录范围')
         end = min(start+limit, len(text))
         return {'operation': 'read_history', 'status': 'success' if start == 0 and end == len(text) else 'partial',
-                **self.history_details(self.records[index]),
+                **self.history_details(record),
                 'content_kind': 'session_record', 'record_id': entry_id, 'content': text[start:end],
                 'start': start, 'end': end, 'total_characters': len(text),
                 'next_start': end if end < len(text) else None}

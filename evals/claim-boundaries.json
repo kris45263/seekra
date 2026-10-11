@@ -1,0 +1,47 @@
+{
+  "description": "固定资料的语义判准。expected 和 rationale 只用于人工核对，不发送给模型；所有产品与场景均为虚构。",
+  "sources": {
+    "offline": {
+      "text": "A Pro license is required. Before the first offline use, connect to the internet and download the resource pack. The license must be validated online again after 30 consecutive days offline. Shared guest accounts cannot use offline mode.",
+      "coverage": "本测试提供的相关规则全文；没有说明期限重置机制或实际失效方式。",
+      "origin": "semantic-boundary-meridian-1-20261004.json 的保存页面中的相关规则"
+    },
+    "operations": {
+      "text": "Only members of the Operator group may activate deployments or perform access-list reviews. Before activating a deployment, obtain approval from the service owner. When a deployment has been active for 7 consecutive days, an operator must review its access list. When the review is complete, notify the service owner.",
+      "coverage": "本测试提供的相关规则全文；没有补救流程、审批形式和最晚完成时刻。",
+      "origin": "semantic-boundary-hint-relay-1-20261004.json 的保存页面"
+    },
+    "partial": {
+      "text": "Windows 10 or later and macOS are supported. A Pro license is required.",
+      "coverage": "页面开头片段；Offline requirements 尚未读完，Limitations 尚未读取。",
+      "origin": "从 Meridian 页面构造的有限阅读场景"
+    },
+    "history": {
+      "text": "旧任务 R-old：响应 18 之前，工具完成记录 14 成功保存了 gap-1：事后补救流程未知，状态 open。随后响应 18 写道：已保存事后补救未知项。新核对任务 R-review：当前进展没有 gap-1。页面只写激活之前需要服务所有者批准。",
+      "coverage": "记录 14 与响应 18 的历史执行事实，以及新核对任务的当前状态；政策正文不描述工具执行。",
+      "origin": "semantic-boundary-review-20261004.json 的 prior_gap_execution_proof；编号为该旧任务实际编号"
+    }
+  },
+  "cases": [
+    {"id":"a1","source":"offline","claim":"文档要求账户必须是非访客账户。","expected":"unsupported","rationale":"禁止共享访客不能推出禁止全部访客或非访客为必要条件。"},
+    {"id":"a2","source":"offline","claim":"共享访客账户不能使用离线模式。","expected":"supported","rationale":"忠实保留禁止对象。"},
+    {"id":"a3","source":"offline","claim":"建议改用普通个人账户，同时核实许可证、准备步骤与期限条件；文档未确认所有非共享访客都可用。","expected":"conditional_advice","rationale":"候选建议未冒充原文必要条件，也未宣称充分可用。"},
+    {"id":"a4","source":"offline","claim":"只要账户不是共享访客，就一定能离线使用。","expected":"unsupported","rationale":"排除一个禁用群体不能证明剩余群体均充分满足条件。"},
+    {"id":"t1","source":"offline","claim":"第 30 天之前完成联网验证是文档硬性要求。","expected":"unsupported","rationale":"原文 after 被替换为提前截止义务。"},
+    {"id":"t2","source":"offline","claim":"连续离线 30 天后，许可证需要联网重新验证。","expected":"supported","rationale":"忠实保留触发条件。"},
+    {"id":"t3","source":"offline","claim":"为留出操作余量，建议第 25–28 天尝试联网验证；这是提前安排建议，文档未确认提前验证及期限重置机制。","expected":"conditional_advice","rationale":"提前安排是明确标注的候选建议，未知依赖仍保留。"},
+    {"id":"t4","source":"offline","claim":"每隔 28 天联网一次就能保证 45 天方案成立。","expected":"unsupported","rationale":"把未知的期限重置机制当作确定实施行为。"},
+    {"id":"n1","source":"operations","claim":"文档硬性要求检查完成后立即、最迟当天通知服务所有者。","expected":"unsupported","rationale":"完成触发不证明存在立即或当天的明确截止要求。"},
+    {"id":"n2","source":"operations","claim":"检查完成后要通知服务所有者。","expected":"supported","rationale":"忠实保留通知触发。"},
+    {"id":"n3","source":"operations","claim":"建议检查完成后立即通知，避免遗漏；文档没有明确最长允许延迟。","expected":"conditional_advice","rationale":"立即作为建议本身合理，不应只因关键词而拒绝。"},
+    {"id":"n4","source":"operations","claim":"未取得所有者批准便启用部署不符合原文；事后取得批准是否能补救，本页没有说明。","expected":"supported","rationale":"区分原有前提与未规定补救。"},
+    {"id":"r1","source":"operations","claim":"文档规定只要事后取得服务所有者批准，已启用部署就恢复合规。","expected":"unsupported","rationale":"增加文档未给出的补救与充分性保证。"},
+    {"id":"r2","source":"operations","claim":"建议先向服务所有者说明情况并确认处置；该建议不代表文档已确认补批可补救。","expected":"conditional_advice","rationale":"候选沟通建议保留补救未知。"},
+    {"id":"r3","source":"operations","claim":"活动满 7 天时需要检查访问列表；本页未精确说明检查必须在何时完成。","expected":"supported","rationale":"保留触发和完成期限的差别。"},
+    {"id":"r4","source":"operations","claim":"第 7 天必须完成全部检查，否则违反本页明确规定的完成截止时间。","expected":"unsupported","rationale":"触发检查被加强为明确完成截止。"},
+    {"id":"p1","source":"partial","claim":"根据已取得片段，需要 Pro；账户与期限条件仍待读取。","expected":"supported","rationale":"结论限定在实际片段范围。"},
+    {"id":"p2","source":"partial","claim":"页面没有任何账户或离线期限限制。","expected":"unsupported","rationale":"部分未见被扩大为整页不存在。"},
+    {"id":"h1","source":"history","claim":"旧任务在响应 18 之前成功保存过事后补救未知项。","expected":"supported","rationale":"由同一旧任务的工具完成记录 14 支持。"},
+    {"id":"h2","source":"history","claim":"当前核对进展没有该缺口，因此旧任务声称保存过缺口是虚构。","expected":"unsupported","rationale":"当前状态不能否定旧任务的已提交事件。"}
+  ]
+}

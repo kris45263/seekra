@@ -1,5 +1,7 @@
 """搜索与页面内容获取：校验、整理和范围读取，不替模型判断研究结论。"""
 
+import asyncio
+from contextlib import nullcontext
 import hashlib
 import ipaddress
 import re
@@ -9,8 +11,39 @@ from urllib.parse import urlsplit
 import httpx
 
 from .operations import OperationResult, failure
+from .runtime import RunCancelled
 
 PAGE_CHARS = 24000
+
+
+class TavilyTransport(httpx.BaseTransport):
+    """同步工具入口使用可取消的异步 HTTP；每次请求独立关闭连接。"""
+
+    def handle_request(self, request):
+        cancel = request.extensions.get('seekra_cancel')
+
+        async def send():
+            loop = asyncio.get_running_loop()
+            task = asyncio.current_task()
+            watch = cancel.watch(lambda: loop.call_soon_threadsafe(task.cancel)) if cancel else nullcontext()
+            try:
+                with watch:
+                    async with httpx.AsyncClient() as client:
+                        response = await client.send(request, stream=True)
+                        try:
+                            # 保留编码后的字节，让同步响应只解压一次。
+                            body = b''.join([chunk async for chunk in response.aiter_raw()])
+                            return httpx.Response(response.status_code, headers=response.headers,
+                                content=body, extensions={key: value for key, value in response.extensions.items()
+                                                          if key != 'network_stream'})
+                        finally:
+                            await response.aclose()
+            except asyncio.CancelledError:
+                if cancel is not None:
+                    cancel.check()
+                raise
+
+        return asyncio.run(send())
 
 
 class SearchResult(TypedDict):
@@ -95,16 +128,21 @@ def normalize_search_results(query: str, response: object) -> SearchResponse:
     return output
 
 
-def request_tavily(endpoint: str, body: dict, *, client: httpx.Client, api_key: str) -> dict:
+def request_tavily(endpoint: str, body: dict, *, client: httpx.Client, api_key: str, cancel=None) -> dict:
     """发送一次 Tavily 请求，网络异常由操作入口转换为结果。"""
+    if cancel is not None:
+        cancel.check()
     response = client.post(f"https://api.tavily.com/{endpoint}",
-                           headers={"Authorization": f"Bearer {api_key}"}, json=body, timeout=40)
+                           headers={"Authorization": f"Bearer {api_key}"}, json=body, timeout=40,
+                           extensions={'seekra_cancel': cancel} if cancel is not None else None)
     response.raise_for_status()
     return response.json()
 
 
 def retrieval_error(operation: str, exc: Exception) -> dict:
     """保留错误类别和状态码，不输出认证信息或原始服务端异常正文。"""
+    if isinstance(exc, RunCancelled):
+        return failure(operation, 'cancelled', '本次资料获取已取消，未取得完整结果。')
     if isinstance(exc, httpx.HTTPStatusError):
         code = exc.response.status_code
         return failure(operation, "http_error", f"Tavily 请求失败（HTTP {code}）。", http_status=code)
@@ -116,12 +154,15 @@ def retrieval_error(operation: str, exc: Exception) -> dict:
 
 
 def tavily_search(query: str, *, client: httpx.Client, api_key: str,
-                  max_results: int = 3, include_domains: list[str] | None = None) -> dict:
+                  max_results: int = 3, include_domains: list[str] | None = None,
+                  chunks_per_source: int | None = None, cancel=None) -> dict:
     """返回搜索片段和处理数量；不隐式读取每个网页或改变来源排序。"""
     if not isinstance(query, str) or not query.strip():
         raise ValueError('query 必须为非空字符串')
     if type(max_results) is not int or not 1 <= max_results <= 10:
         raise ValueError('max_results 必须为 1–10 的整数')
+    if chunks_per_source is not None and (type(chunks_per_source) is not int or not 1 <= chunks_per_source <= 3):
+        raise ValueError('chunks_per_source 必须为 1–3 的整数')
     domains = []
     if include_domains is not None:
         if not isinstance(include_domains, list) or len(include_domains) > 10:
@@ -139,12 +180,14 @@ def tavily_search(query: str, *, client: httpx.Client, api_key: str,
                 domains.append(domain)
     parameters = {'search_depth': 'basic', 'max_results': max_results,
                   'include_answer': False, 'include_raw_content': False}
+    if chunks_per_source is not None:
+        parameters['chunks_per_source'] = chunks_per_source
     if domains:
         parameters.update(include_domains=domains, include_domains_mode='filter')
     try:
-        raw = request_tavily('search', {'query': query, **parameters}, client=client, api_key=api_key)
+        raw = request_tavily('search', {'query': query, **parameters}, client=client, api_key=api_key, cancel=cancel)
         result = normalize_search_results(query, raw)
-    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+    except (httpx.HTTPError, ValueError, KeyError, TypeError, RunCancelled) as exc:
         result = retrieval_error('tavily_search', exc)
         result['query'] = query
     result['search_parameters'] = parameters
@@ -170,7 +213,7 @@ def valid_page_url(url: str) -> bool:
         return False
 
 
-def read_page(url: str, *, client: httpx.Client, api_key: str, pages: dict, start: int = 0) -> dict:
+def read_page(url: str, *, client: httpx.Client, api_key: str, pages: dict, start: int = 0, cancel=None) -> dict:
     """提取指定 URL；start=0 重新获取，后续范围复用当前会话中同一内容快照。
 
     provider 不提供最终地址或完整性保证，故不把报告 URL 称为最终地址。
@@ -183,7 +226,7 @@ def read_page(url: str, *, client: httpx.Client, api_key: str, pages: dict, star
         pages.pop(url, None)
         try:
             raw = request_tavily("extract", {"urls": [url], "extract_depth": "basic", "format": "markdown",
-                                 "include_images": False, "timeout": 20}, client=client, api_key=api_key)
+                                 "include_images": False, "timeout": 20}, client=client, api_key=api_key, cancel=cancel)
             if not isinstance(raw, dict) or not isinstance(raw.get("results"), list) or not isinstance(raw.get("failed_results"), list):
                 raise ValueError("结果结构异常")
             if not raw["results"]:
@@ -215,7 +258,7 @@ def read_page(url: str, *, client: httpx.Client, api_key: str, pages: dict, star
             pages[url] = {"title": title.strip() if isinstance(title, str) and title.strip() else reported_url,
                           "url": reported_url, "content": content,
                           "snapshot_id": hashlib.sha256(content.encode()).hexdigest()[:16]}
-        except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        except (httpx.HTTPError, ValueError, KeyError, TypeError, RunCancelled) as exc:
             return {**retrieval_error("read_page", exc), "requested_url": url}
     if url not in pages:
         return failure("read_page", "missing_snapshot", "没有可继续读取的快照，请先从 start=0 读取。", requested_url=url)

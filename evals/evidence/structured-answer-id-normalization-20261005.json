@@ -1,0 +1,163 @@
+{
+  "case": "meridian",
+  "repeat": 2,
+  "model_request_repeated": false,
+  "resolution": "Integer passage identifiers canonicalized within same unique supplied pool; source ranges and semantics not inferred.",
+  "source_file": "structured-answer-network-retest-20261005.json",
+  "source_sha256": "20358db6d7686b97f19c285357f95b0506f0c6ec06be729bd4c10098418ab0b9",
+  "structured": {
+    "evidence": [
+      "P2",
+      "P3",
+      "P4",
+      "P124",
+      "P125"
+    ],
+    "judgments": [
+      {
+        "id": "J1",
+        "text": "Windows 11 属于文档支持的 Windows 10 或更高版本。",
+        "evidence": [
+          "P2"
+        ],
+        "conditions": "设备运行 Meridian 2.0 离线指南所述产品。"
+      },
+      {
+        "id": "J2",
+        "text": "Pro 许可证满足离线要求中的 Pro 许可证要求。",
+        "evidence": [
+          "P3"
+        ],
+        "conditions": "该 Pro 许可证有效且对应本次使用。"
+      },
+      {
+        "id": "J3",
+        "text": "首次离线使用前需联网并下载资源包；资源包已下载不改变许可证要求。",
+        "evidence": [
+          "P3",
+          "P4"
+        ],
+        "conditions": "用户所述“资源包已下载”发生在首次离线使用前，且已完成联网下载。"
+      },
+      {
+        "id": "J4",
+        "text": "连续离线45天会与“离线满30个连续日后必须再次在线验证”的要求冲突。",
+        "evidence": [
+          "P124"
+        ],
+        "conditions": "使用许可离线功能且期间没有进行在线验证。"
+      },
+      {
+        "id": "J5",
+        "text": "共享访客账户不能使用离线模式，因此准备用共享访客账户离线45天不可行。",
+        "evidence": [
+          "P125"
+        ],
+        "conditions": "该账户被归类为共享访客账户。"
+      },
+      {
+        "id": "J6",
+        "text": "即使账户限制可解决，45天连续离线仍超过30天再验证阈值，除非在达到30个连续日之前或达到时重新联网验证。",
+        "evidence": [
+          "P124"
+        ],
+        "conditions": "离线使用适用同一许可证再验证规则。"
+      },
+      {
+        "id": "J7",
+        "text": "文档只说明30天后必须再次在线验证，未说明具体失效机制、例外或期限重置方式。",
+        "evidence": [
+          "P124"
+        ],
+        "conditions": "以当前给出的离线指南段落为限。"
+      },
+      {
+        "id": "J8",
+        "text": "文档只禁止共享访客账户离线，未明确说明非共享/个人账户是否允许离线。",
+        "evidence": [
+          "P125"
+        ],
+        "conditions": "以当前给出的限制段落为限。"
+      }
+    ],
+    "recommendations": [
+      {
+        "text": "不要使用共享访客账户执行离线模式；改用文档允许离线使用的账户类型，但需先确认非共享账户是否可用。",
+        "based_on": [
+          "J5",
+          "J8"
+        ],
+        "unknown_ids": [
+          "U2",
+          "U4"
+        ]
+      },
+      {
+        "text": "若账户限制解决，将连续离线控制在30天内，并在达到30个连续日之前重新联网验证。",
+        "based_on": [
+          "J4",
+          "J6"
+        ],
+        "unknown_ids": [
+          "U1",
+          "U3"
+        ]
+      },
+      {
+        "text": "若必须覆盖45天，考虑拆分为多个少于30天的离线区间，并在区间之间安排在线验证；该方案取决于在线验证是否重置期限。",
+        "based_on": [
+          "J4",
+          "J6"
+        ],
+        "unknown_ids": [
+          "U1",
+          "U3"
+        ]
+      },
+      {
+        "text": "向产品方确认超过30天的具体后果、在线验证的重置规则，以及共享访客限制是否有例外。",
+        "based_on": [
+          "J7",
+          "J8"
+        ],
+        "unknown_ids": [
+          "U1",
+          "U3",
+          "U4"
+        ]
+      },
+      {
+        "text": "Windows 11、Pro 许可和已下载资源包本身不构成障碍，但仍受账户限制和30天再验证规则约束。",
+        "based_on": [
+          "J1",
+          "J2",
+          "J3"
+        ],
+        "unknown_ids": []
+      }
+    ],
+    "unknowns": [
+      {
+        "id": "U1",
+        "question": "超过30个连续日未在线验证时，具体失效机制是什么（阻止使用、降级、仅提示等）？",
+        "answer_impact": "影响能否接受超过30天的风险及是否需要提前强制在线。"
+      },
+      {
+        "id": "U2",
+        "question": "非共享访客账户（如普通/个人账户）是否允许使用离线模式？",
+        "answer_impact": "影响更换账户后能否实现离线使用。"
+      },
+      {
+        "id": "U3",
+        "question": "在线验证是否重置30个连续日离线期限，以及从何时重新计算？",
+        "answer_impact": "影响分段实现45天离线是否可行及验证时点安排。"
+      },
+      {
+        "id": "U4",
+        "question": "共享访客账户不能离线的限制是否有 Pro 许可或其他例外？",
+        "answer_impact": "影响该共享访客账户方案是否存在可行例外。"
+      }
+    ]
+  },
+  "rendered_markdown": "## 原文依据\n\n### 1. Meridian 2.0 offline guide > Supported platforms\n\n> Windows 10 or later and macOS are supported.\n\n[来源](https://docs.example.org/meridian/2.0/offline)\n\n### 2. Meridian 2.0 offline guide > Offline requirements\n\n> A Pro license is required. Before the first offline use, connect to the internet and download the resource pack.\n\n[来源](https://docs.example.org/meridian/2.0/offline)\n\n### 3. Meridian 2.0 offline guide > Offline requirements\n\n> Operational note 0: Cached resources stay on the device. This note does not change licensing requirements.\n\n[来源](https://docs.example.org/meridian/2.0/offline)\n\n### 4. Meridian 2.0 offline guide > Offline requirements\n\n> The license must be validated online again after 30 consecutive days offline.\n\n[来源](https://docs.example.org/meridian/2.0/offline)\n\n### 5. Meridian 2.0 offline guide > Limitations\n\n> Shared guest accounts cannot use offline mode.\n\n[来源](https://docs.example.org/meridian/2.0/offline)\n\n## 场景判断\n\n- Windows 11 属于文档支持的 Windows 10 或更高版本。 条件与边界：设备运行 Meridian 2.0 离线指南所述产品。\n- Pro 许可证满足离线要求中的 Pro 许可证要求。 条件与边界：该 Pro 许可证有效且对应本次使用。\n- 首次离线使用前需联网并下载资源包；资源包已下载不改变许可证要求。 条件与边界：用户所述“资源包已下载”发生在首次离线使用前，且已完成联网下载。\n- 连续离线45天会与“离线满30个连续日后必须再次在线验证”的要求冲突。 条件与边界：使用许可离线功能且期间没有进行在线验证。\n- 共享访客账户不能使用离线模式，因此准备用共享访客账户离线45天不可行。 条件与边界：该账户被归类为共享访客账户。\n- 即使账户限制可解决，45天连续离线仍超过30天再验证阈值，除非在达到30个连续日之前或达到时重新联网验证。 条件与边界：离线使用适用同一许可证再验证规则。\n- 文档只说明30天后必须再次在线验证，未说明具体失效机制、例外或期限重置方式。 条件与边界：以当前给出的离线指南段落为限。\n- 文档只禁止共享访客账户离线，未明确说明非共享/个人账户是否允许离线。 条件与边界：以当前给出的限制段落为限。\n\n## 调整建议\n\n- 不要使用共享访客账户执行离线模式；改用文档允许离线使用的账户类型，但需先确认非共享账户是否可用。\n  - 待确认条件：非共享访客账户（如普通/个人账户）是否允许使用离线模式？\n  - 待确认条件：共享访客账户不能离线的限制是否有 Pro 许可或其他例外？\n- 若账户限制解决，将连续离线控制在30天内，并在达到30个连续日之前重新联网验证。\n  - 待确认条件：超过30个连续日未在线验证时，具体失效机制是什么（阻止使用、降级、仅提示等）？\n  - 待确认条件：在线验证是否重置30个连续日离线期限，以及从何时重新计算？\n- 若必须覆盖45天，考虑拆分为多个少于30天的离线区间，并在区间之间安排在线验证；该方案取决于在线验证是否重置期限。\n  - 待确认条件：超过30个连续日未在线验证时，具体失效机制是什么（阻止使用、降级、仅提示等）？\n  - 待确认条件：在线验证是否重置30个连续日离线期限，以及从何时重新计算？\n- 向产品方确认超过30天的具体后果、在线验证的重置规则，以及共享访客限制是否有例外。\n  - 待确认条件：超过30个连续日未在线验证时，具体失效机制是什么（阻止使用、降级、仅提示等）？\n  - 待确认条件：在线验证是否重置30个连续日离线期限，以及从何时重新计算？\n  - 待确认条件：共享访客账户不能离线的限制是否有 Pro 许可或其他例外？\n- Windows 11、Pro 许可和已下载资源包本身不构成障碍，但仍受账户限制和30天再验证规则约束。\n\n## 未确定事项\n\n- 超过30个连续日未在线验证时，具体失效机制是什么（阻止使用、降级、仅提示等）？ 对回答的影响：影响能否接受超过30天的风险及是否需要提前强制在线。\n- 非共享访客账户（如普通/个人账户）是否允许使用离线模式？ 对回答的影响：影响更换账户后能否实现离线使用。\n- 在线验证是否重置30个连续日离线期限，以及从何时重新计算？ 对回答的影响：影响分段实现45天离线是否可行及验证时点安排。\n- 共享访客账户不能离线的限制是否有 Pro 许可或其他例外？ 对回答的影响：影响该共享访客账户方案是否存在可行例外。\n"
+}

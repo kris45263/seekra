@@ -56,6 +56,8 @@ class CancellationToken:
 class ModelResponse:
     message: dict
     finish_reason: str
+    continuation: dict | None = None
+    provider: dict | None = None
 
 
 class Model(Protocol):

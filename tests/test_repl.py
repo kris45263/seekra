@@ -14,6 +14,15 @@ from test_agent import reply
 class ReplTests(unittest.TestCase):
     """通过真实入口和 HTTP 模拟执行连续输入。"""
 
+    def test_cli_has_no_decision_limit_parameter(self):
+        with patch('sys.argv', ['seekra', '问题', '--no-session']), \
+             patch('seekra.cli.read_config', return_value={'DEEPSEEK_API_KEY': 'fake',
+                   'DEEPSEEK_MODEL': 'm', 'TAVILY_API_KEY': 'fake'}), \
+             patch('seekra.cli.run_agent', return_value='答案') as run, \
+             redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            self.assertEqual(main(), 0)
+            self.assertNotIn('max_iterations', run.call_args.kwargs)
+
     def test_reuses_history_clears_and_recovers(self):
         """失败和中断后继续；空输入及命令不调用模型。"""
         histories = []
@@ -52,7 +61,7 @@ class ReplTests(unittest.TestCase):
 
     def test_conflicting_or_missing_arguments_fail_before_config(self):
         """非法组合和非法上限在读取配置前拒绝。"""
-        for args in ([], ["--repl", "问题"], ["--repl", "--max-iterations", "0"]):
+        for args in ([], ["--repl", "问题"], ["--repl", "--max-iterations", "3"]):
             with self.subTest(args=args), patch("sys.argv", ["seekra", *args]), \
                  patch("seekra.cli.read_config") as config, redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as raised:

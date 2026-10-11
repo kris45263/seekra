@@ -24,9 +24,11 @@ class SearchControlTests(unittest.TestCase):
             seen.append(json.loads(request.content))
             return httpx.Response(200, json={'results': []})
         result = self.execute({'query':'视觉', 'max_results':6,
+                               'chunks_per_source':1,
                                'include_domains':[' API-DOCS.DEEPSEEK.COM ', 'api-docs.deepseek.com']}, handler)
         self.assertEqual(len(seen), 1)
         self.assertEqual(seen[0]['max_results'], 6)
+        self.assertEqual(seen[0]['chunks_per_source'], 1)
         self.assertEqual(seen[0]['include_domains'], ['api-docs.deepseek.com'])
         self.assertEqual(seen[0]['include_domains_mode'], 'filter')
         self.assertEqual(result['search_parameters'], {k:v for k,v in seen[0].items() if k != 'query'})
@@ -41,9 +43,11 @@ class SearchControlTests(unittest.TestCase):
             self.execute(args,handler)
             self.assertEqual(seen[0]['max_results'],3)
             self.assertNotIn('include_domains',seen[0])
+            self.assertNotIn('chunks_per_source',seen[0])
 
     def test_invalid_controls_do_not_call_network(self):
         variants = [{'max_results':v} for v in (True,0,11,2.5,'6')]
+        variants += [{'chunks_per_source':v} for v in (True,0,4,1.5,'1',None)]
         variants += [{'include_domains':v} for v in ('example.com', ['https://example.com'],
                      ['example.com/a'], ['*.example.com'], ['x@example.com'], ['localhost'],
                      ['127.0.0.1'], ['-bad.example'], ['bad_.example'], [1], ['example.com']*11)]
@@ -59,6 +63,7 @@ class SearchControlTests(unittest.TestCase):
         self.assertEqual(schema['required'],['query'])
         self.assertEqual(schema['properties']['max_results']['maximum'],10)
         self.assertIn('include_domains',schema['properties'])
+        self.assertEqual(schema['properties']['chunks_per_source']['maximum'],3)
 
     def test_display_sources_and_read_ranges_without_mutation(self):
         result={'status':'success','results':[{'title':'标题','url':'https://example.com/a',

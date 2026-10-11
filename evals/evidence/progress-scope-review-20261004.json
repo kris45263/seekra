@@ -1,0 +1,1712 @@
+{
+  "date": "2026-10-04",
+  "scope": "Gap relevance, plan freshness, preserved evidence conditions and cold recovery",
+  "changes": [
+    "Optional gap.answer_impact survives partial updates, checkpoints and reloads",
+    "Prompt and schema clarify when saved next_step must be revised",
+    "Prompt ties continuation and stopping to the original question, preserving unresolved boundaries",
+    "Prompt distinguishes source conditions, first-introduction claims and sufficient guarantees"
+  ],
+  "verification": {
+    "unittest_total": 231,
+    "passed": 230,
+    "skipped": 1,
+    "diff_check_passed": true,
+    "real_model_requests": 39,
+    "real_tavily_requests": 6
+  },
+  "cases": [
+    {
+      "file": "progress-scope-control-20261004.json",
+      "sha256": "f4ccaf7a20b1dd0cb1e181fd2f783ca2789de28cb673c9c329ed47be5dc1bb9d",
+      "mode": "real_model_cached_official_text_known_sources",
+      "question": "SQLite 数据库使用 WAL 模式，所在目录只读，-wal 和 -shm 文件都不存在，但另一个进程还可能修改数据库。有人建议连接 URI 加 immutable=1 来只读打开。请查找 SQLite 官方资料，核实这种建议是否适用、普通只读打开还缺什么条件、哪些版本边界能由文档确定，并给出来源。 可先查阅以下官方页面：https://www.sqlite.org/wal.html 、https://sqlite.org/uri.html 、https://sqlite.org/releaselog/3_22_0.html 。",
+      "status": "completed",
+      "seconds": 39.69,
+      "real_model_requests": 6,
+      "initial_scripted_model_calls": 0,
+      "real_tavily_requests": 0,
+      "fixture_tavily_requests": 3,
+      "thinking_enabled_on_all_requests": true,
+      "selection_sender_hash_assertions_passed": true,
+      "reload_same_messages": true,
+      "quotes_checked_across_saved_versions": 0,
+      "final_revision": 1,
+      "final_gaps": [
+        {
+          "id": "gap-1",
+          "question": "当三个只读 WAL 条件都不满足时，SQLite 具体返回的错误码（如 SQLITE_CANTOPEN / SQLITE_READONLY）及确切行为，官方这些页面未明确说明；immutable=1 是否会忽略已存在的 -wal 文件也未从这些页面得到确认。",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        }
+      ],
+      "final_next_step": "",
+      "final_targets": [],
+      "final_gap_links": [
+        {
+          "gap_id": "gap-1",
+          "status": "open",
+          "finding_ids": [],
+          "target_ids": []
+        }
+      ],
+      "final_coverage": {
+        "documents": [
+          {
+            "source_id": "S2",
+            "document_id": "S2-P1",
+            "snapshot_id": "cfd09ff9f24d4551",
+            "content_kind": "page_text",
+            "title": "https://sqlite.org/uri.html",
+            "url": "https://sqlite.org/uri.html",
+            "total_characters": 10791,
+            "delivered_characters": 5874,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                2824
+              ],
+              [
+                7584,
+                10634
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-1",
+              "finding-4"
+            ]
+          },
+          {
+            "source_id": "S1",
+            "document_id": "S1-P1",
+            "snapshot_id": "87ae3462b1246284",
+            "content_kind": "page_text",
+            "title": "https://www.sqlite.org/wal.html",
+            "url": "https://www.sqlite.org/wal.html",
+            "total_characters": 34790,
+            "delivered_characters": 6162,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                1608
+              ],
+              [
+                17895,
+                20500
+              ],
+              [
+                26179,
+                28128
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-2",
+              "finding-5",
+              "finding-6"
+            ]
+          },
+          {
+            "source_id": "S3",
+            "document_id": "S3-P1",
+            "snapshot_id": "aef1ac765b87b7a9",
+            "content_kind": "page_text",
+            "title": "https://sqlite.org/releaselog/3_22_0.html",
+            "url": "https://sqlite.org/releaselog/3_22_0.html",
+            "total_characters": 6196,
+            "delivered_characters": 1800,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                1800
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-3"
+            ]
+          }
+        ],
+        "not_displayed_document_ids": []
+      },
+      "checkpoint_requests": 0,
+      "provider_recovery_reasons": [],
+      "matches_final_production_source": false,
+      "tool_actions": [
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://www.sqlite.org/wal.html"
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/uri.html"
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/releaselog/3_22_0.html"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H11"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S2-P1-H6"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H14"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H10"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S2-P1-H2"
+          }
+        },
+        {
+          "tool": "update_research",
+          "arguments": {
+            "base_revision": 0,
+            "goal": "核实 SQLite 只读 WAL 数据库在只读目录、无 -wal/-shm 文件、且可能有其他进程写入时，immutable=1 是否适用，以及普通只读打开的条件和版本边界。",
+            "operations": [
+              {
+                "op": "add_finding",
+                "summary": "immutable=1 的含义：它告诉 SQLite 该数据库文件位于只读介质、连其他有高权限的进程都无法修改；SQLite 会始终以只读方式打开并跳过所有文件锁和变更检测。若文件实际发生了变化，可能返回错误查询结果和/或 SQLITE_CORRUPT 错误。",
+                "conditions": "uri.html 第 3.3 节“Recognized Query Parameters”，immutable=1 条目。该断言的是“文件不可变更”这一前提。",
+                "references": [
+                  "S2-P1@7584-10634"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "只读 WAL 数据库可被读取需满足三个条件之一（自 3.22.0 起放宽）：(1) -shm 和 -wal 文件已存在且可读；(2) 对数据库所在目录有写权限，以便创建 -shm 和 -wal；(3) 使用 immutable 查询参数打开。三者满足其一即可。",
+                "conditions": "wal.html 第 5 节“Read-Only Databases”，适用于 SQLite 3.22.0（2018-01-22）及以后版本。",
+                "references": [
+                  "S1-P1@19490-20500"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "3.22.0 发行说明：新增能力，使应用即使对数据库及其所在目录都无写权限，也能读取 WAL 模式数据库，前提是 -shm 和 -wal 文件存在于该目录中。",
+                "conditions": "releaselog/3_22_0.html，条目 2，2018-01-22 发布。",
+                "references": [
+                  "S3-P1@0-1800"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "URI 文件名能力默认关闭，需通过 SQLITE_USE_URI 编译选项、sqlite3_config(SQLITE_CONFIG_URI,...) 启动配置，或对单个连接在 sqlite3_open_v2 的 F 参数中传 SQLITE_OPEN_URI 位来启用。否则 URI 中的 immutable=1 等查询参数不会被识别。",
+                "conditions": "uri.html 第 2 节“Backwards Compatibility”；URI 文件名自 3.7.7（2011-06-23）引入。",
+                "references": [
+                  "S2-P1@1237-2824"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "官方建议：在把 SQLite 数据库镜像固化到只读介质之前，最好先转换为 PRAGMA journal_mode=DELETE。",
+                "conditions": "wal.html 第 5 节末段，作为只读介质的最佳实践。",
+                "references": [
+                  "S1-P1@19490-20500"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "WAL 文件在任何连接打开数据库期间都存在，通常在最后一个连接关闭时自动删除；若最后一个进程未干净关闭或使用了 SQLITE_FCNTL_PERSIST_WAL，WAL 文件可能被保留。数据库与 WAL 文件分离可能导致已提交事务丢失或数据库损坏。",
+                "conditions": "wal.html 第 4 节“The WAL File”。",
+                "references": [
+                  "S1-P1@17895-19490"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_gap",
+                "question": "当三个只读 WAL 条件都不满足时，SQLite 具体返回的错误码（如 SQLITE_CANTOPEN / SQLITE_READONLY）及确切行为，官方这些页面未明确说明；immutable=1 是否会忽略已存在的 -wal 文件也未从这些页面得到确认。"
+              }
+            ]
+          }
+        }
+      ],
+      "tool_failures": [],
+      "secrets_scan_passed": true
+    },
+    {
+      "file": "progress-scope-current-20261004.json",
+      "sha256": "46ebebbffeae9a22479d5ffdf30b65d896b40e1532d09db6dc9c3d5134201503",
+      "mode": "real_model_cached_official_text_known_sources",
+      "question": "SQLite 数据库使用 WAL 模式，所在目录只读，-wal 和 -shm 文件都不存在，但另一个进程还可能修改数据库。有人建议连接 URI 加 immutable=1 来只读打开。请查找 SQLite 官方资料，核实这种建议是否适用、普通只读打开还缺什么条件、哪些版本边界能由文档确定，并给出来源。 可先查阅以下官方页面：https://www.sqlite.org/wal.html 、https://sqlite.org/uri.html 、https://sqlite.org/releaselog/3_22_0.html 。",
+      "status": "completed",
+      "seconds": 79.67,
+      "real_model_requests": 9,
+      "initial_scripted_model_calls": 0,
+      "real_tavily_requests": 0,
+      "fixture_tavily_requests": 10,
+      "thinking_enabled_on_all_requests": true,
+      "selection_sender_hash_assertions_passed": true,
+      "reload_same_messages": true,
+      "quotes_checked_across_saved_versions": 17,
+      "final_revision": 2,
+      "final_gaps": [
+        {
+          "id": "gap-1",
+          "question": "immutable=1 查询参数首次引入的确切 SQLite 版本（uri.html 只笼统标注参数列表 as of 3.15.0，需查 changes.html 或 3.15.x 发布说明核实）。",
+          "answer_impact": "影响'哪些版本边界能由文档确定'这一项的精度：若无法确定引入版本，则只能说明 wal.html 把 immutable 列为 3.22.0 起可用的三个条件之一。",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        },
+        {
+          "id": "gap-2",
+          "question": "在 3.22.0 之前，用 immutable=1 打开 WAL 模式数据库是否可行，官方文档是否有明确说明或限制。",
+          "answer_impact": "影响能否断言'immutable 只读打开 WAL 库自 3.22.0 起才被文档确认'。",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        },
+        {
+          "id": "gap-3",
+          "question": "在 -wal/-shm 不存在且目录只读时，普通只读方式（如 mode=ro）打开 WAL 库究竟返回哪个错误码（如 SQLITE_READONLY_CANTINIT、SQLITE_READONLY_DIRECTORY 或 SQLITE_CANTOPEN）。",
+          "answer_impact": "只影响'普通只读打开还缺什么条件'的表述精度（是否给出具体错误码），不改变'缺 -wal/-shm 且目录不可写时普通只读打开失败'的方向性结论。",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        }
+      ],
+      "final_next_step": "核查已完成，直接给出结论：immutable=1 在'另一进程可能修改'的前提下不适用；普通只读打开缺 -wal/-shm 存在或目录可写这两条；版本边界按文档可确定项与未确定项分别标注。",
+      "final_targets": [],
+      "final_gap_links": [
+        {
+          "gap_id": "gap-1",
+          "status": "open",
+          "finding_ids": [],
+          "target_ids": []
+        },
+        {
+          "gap_id": "gap-2",
+          "status": "open",
+          "finding_ids": [],
+          "target_ids": []
+        },
+        {
+          "gap_id": "gap-3",
+          "status": "open",
+          "finding_ids": [
+            "finding-6"
+          ],
+          "target_ids": []
+        }
+      ],
+      "final_coverage": {
+        "documents": [
+          {
+            "source_id": "S1",
+            "document_id": "S1-P1",
+            "snapshot_id": "87ae3462b1246284",
+            "content_kind": "page_text",
+            "title": "https://www.sqlite.org/wal.html",
+            "url": "https://www.sqlite.org/wal.html",
+            "total_characters": 34790,
+            "delivered_characters": 10085,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                1608
+              ],
+              [
+                5245,
+                5652
+              ],
+              [
+                7024,
+                9940
+              ]
+            ],
+            "more_ranges": 3,
+            "used_by": [
+              "finding-1",
+              "finding-5",
+              "finding-6"
+            ]
+          },
+          {
+            "source_id": "S2",
+            "document_id": "S2-P1",
+            "snapshot_id": "cfd09ff9f24d4551",
+            "content_kind": "page_text",
+            "title": "https://sqlite.org/uri.html",
+            "url": "https://sqlite.org/uri.html",
+            "total_characters": 10791,
+            "delivered_characters": 4317,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                1267
+              ],
+              [
+                7584,
+                10634
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-2",
+              "finding-3"
+            ]
+          },
+          {
+            "source_id": "S3",
+            "document_id": "S3-P1",
+            "snapshot_id": "aef1ac765b87b7a9",
+            "content_kind": "page_text",
+            "title": "https://sqlite.org/releaselog/3_22_0.html",
+            "url": "https://sqlite.org/releaselog/3_22_0.html",
+            "total_characters": 6196,
+            "delivered_characters": 6196,
+            "ever_delivered": "full",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                6196
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-4"
+            ]
+          }
+        ],
+        "not_displayed_document_ids": []
+      },
+      "checkpoint_requests": 0,
+      "provider_recovery_reasons": [],
+      "matches_final_production_source": false,
+      "tool_actions": [
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://www.sqlite.org/wal.html"
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/uri.html"
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/releaselog/3_22_0.html"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H11"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H14"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S2-P1-H6"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H4"
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/howtocorrupt.html"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S3-P1-H1"
+          }
+        },
+        {
+          "tool": "tavily_search",
+          "arguments": {
+            "query": "SQLite immutable query parameter read-only WAL database version",
+            "include_domains": [
+              "sqlite.org",
+              "www.sqlite.org"
+            ],
+            "max_results": 6
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/howtocorrupt.html"
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/rescode.html"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H13"
+          }
+        },
+        {
+          "tool": "update_research",
+          "arguments": {
+            "base_revision": 0,
+            "next_step": "尝试核实 immutable=1 的引入版本（3.15.0 release log）以及只读打开 WAL 库失败时的具体错误码；若无法由官方文档确定，则在回答中明确标注该边界未定，并给出结论。",
+            "operations": [
+              {
+                "op": "add_finding",
+                "summary": "wal.html 官方说明：自 SQLite 3.22.0（2018-01-22）起放宽了'读只读 WAL 库'的限制；在只读介质或缺少写权限的情况下，只要满足下列三个条件之一即可读取：(1) -shm 与 -wal 文件已存在且可读；(2) 所在目录有写权限（以便创建 -shm 和 -wal）；(3) 连接使用 immutable 查询参数打开。",
+                "conditions": "适用于 3.22.0 及以后版本；三个条件是'满足其一'的关系；文档给出的建议是：在把数据库镜像烧录到只读介质前，最好先转换到 journal_mode=DELETE。",
+                "references": [
+                  "S1-P1@19490-20500"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S1-P1@19490-20500",
+                    "text": "This constraint was relaxed beginning with SQLite version 3.22.0 (2018-01-22)."
+                  },
+                  {
+                    "reference": "S1-P1@19490-20500",
+                    "text": "The database connection is opened using the immutable query parameter."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "uri.html 官方定义：immutable 参数是一个布尔值，向 SQLite 声明底层数据库文件位于只读介质上、即使拥有提权权限的其他进程也无法修改它；SQLite 总是以只读方式打开 immutable 数据库文件，并对其跳过所有文件锁定与变更检测。若该断言与实际不符而文件发生变化，SQLite 可能返回错误的查询结果和/或 SQLITE_CORRUPT 错误。",
+                "conditions": "immutable 的语义前提是'文件在任何进程下都不会变化'，包括更高权限的进程；一旦违反，错误结果或 SQLITE_CORRUPT 是文档明示的可能后果。该条同样适用于通过 xDeviceCharacteristics 的 SQLITE_IOCAP_IMMUTABLE 位声明的场景。",
+                "references": [
+                  "S2-P1@7584-10634"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S2-P1@7584-10634",
+                    "text": "The immutable query parameter is a boolean that signals to SQLite that the underlying database file is held on read-only media and cannot be modified, even by another process with elevated privileges."
+                  },
+                  {
+                    "reference": "S2-P1@7584-10634",
+                    "text": "If this query parameter (or the SQLITE_IOCAP_IMMUTABLE bit in xDeviceCharacteristics) asserts that a database file is immutable and that file changes anyhow, then SQLite might return incorrect query results and/or SQLITE_CORRUPT errors."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "uri.html 说明 URI 文件名能力自 3.7.7（2011-06-23）起提供，并在 §3.3 声明所列出的 query 参数是'as of version 3.15.0 (2016-10-14)'被 SQLite 识别的。该页把 immutable 与 cache/mode/modeof/nolock/psow/vfs 并列，但未单独给出 immutable 的引入版本。",
+                "conditions": "该页只给出参数清单及其'截至 3.15.0 已识别'的表述，不能据此断言 immutable 首次出现的版本，也不能断言 immutable 与 WAL 组合从哪一版起有效。",
+                "references": [
+                  "S2-P1@0-1267",
+                  "S2-P1@7584-10634"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S2-P1@7584-10634",
+                    "text": "The following query parameters are recognized by SQLite as of version 3.15.0 (2016-10-14)."
+                  },
+                  {
+                    "reference": "S2-P1@0-1267",
+                    "text": "Beginning with version 3.7.7 (2011-06-23), the SQLite database file argument to the sqlite3_open(), sqlite3_open16(), and sqlite3_open_v2() interfaces and to the ATTACH command can be specified either as an ordinary filename or as a Uniform Resource Identifier or URI."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "3.22.0 发布说明第 2 条把该版本新增的'无写权限读取 WAL 库'能力明确限定为：该目录中 -shm 与 -wal 文件已存在。该条只覆盖'两文件已存在'的情形，没有提到 immutable 参数，也不覆盖用户场景（-wal/-shm 不存在且目录只读）。",
+                "conditions": "适用于 3.22.0 的发布说明；仅为该版本的一个条目，不等于对 immutable+WAL 组合的完整说明。",
+                "references": [
+                  "S3-P1@0-1800"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S3-P1@0-1800",
+                    "text": "Add the ability to read from WAL mode databases even if the application lacks write permission on the database and its containing directory, as long as the -shm and -wal files exist in that directory."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "wal.html §8：自 3.7.4（2010-12-07）起，即使共享内存不可用，WAL 数据库也可以创建、读取和写入，但前提是在首次访问前把 locking_mode 设为 EXCLUSIVE，即该进程保证自己是唯一访问该数据库的进程；此模式下不会创建共享内存 wal-index。",
+                "conditions": "要求进程独占访问该数据库（文档原文：guaranteed to be the only process accessing the database）；EXCLUSIVE 模式在 journal_mode 为 WAL 期间无法改回 NORMAL。这条并不适用于'另一进程还可能修改'的场景。",
+                "references": [
+                  "S1-P1@26179-28128"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S1-P1@26179-28128",
+                    "text": "a process can interact with a WAL database without using shared memory if that process is guaranteed to be the only process accessing the database"
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_gap",
+                "question": "immutable=1 查询参数首次引入的确切 SQLite 版本（uri.html 只笼统标注参数列表 as of 3.15.0，需查 changes.html 或 3.15.x 发布说明核实）。",
+                "answer_impact": "影响'哪些版本边界能由文档确定'这一项的精度：若无法确定引入版本，则只能说明 wal.html 把 immutable 列为 3.22.0 起可用的三个条件之一。"
+              },
+              {
+                "op": "add_gap",
+                "question": "在 3.22.0 之前，用 immutable=1 打开 WAL 模式数据库是否可行，官方文档是否有明确说明或限制。",
+                "answer_impact": "影响能否断言'immutable 只读打开 WAL 库自 3.22.0 起才被文档确认'。"
+              },
+              {
+                "op": "add_gap",
+                "question": "在 -wal/-shm 不存在且目录只读时，普通只读方式（如 mode=ro）打开 WAL 库究竟返回哪个错误码（如 SQLITE_READONLY_CANTINIT、SQLITE_READONLY_DIRECTORY 或 SQLITE_CANTOPEN）。",
+                "answer_impact": "只影响'普通只读打开还缺什么条件'的表述精度（是否给出具体错误码），不改变'缺 -wal/-shm 且目录不可写时普通只读打开失败'的方向性结论。"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/releaselog/3_15_0.html"
+          }
+        },
+        {
+          "tool": "tavily_search",
+          "arguments": {
+            "query": "sqlite \"immutable\" URI query parameter added in version 3.15.0 release notes changelog",
+            "include_domains": [
+              "sqlite.org",
+              "www.sqlite.org"
+            ],
+            "max_results": 5,
+            "chunks_per_source": 2
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://www.sqlite.org/releaselog/3_15_0.html"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "query": "deleted",
+            "document_id": "S1-P1"
+          }
+        },
+        {
+          "tool": "update_research",
+          "arguments": {
+            "base_revision": 1,
+            "next_step": "核查已完成，直接给出结论：immutable=1 在'另一进程可能修改'的前提下不适用；普通只读打开缺 -wal/-shm 存在或目录可写这两条；版本边界按文档可确定项与未确定项分别标注。",
+            "operations": [
+              {
+                "op": "add_finding",
+                "summary": "wal.html 说明：-wal 文件在任何数据库连接保持打开期间一直存在；通常当最后一个连接关闭时该文件会被自动删除（若最后一个进程未干净关闭或使用 SQLITE_FCNTL_PERSIST_WAL 等则例外）。这为'两文件不存在'提供了官方解释：没有活动连接时通常不会保留 -wal。",
+                "conditions": "描述的是通常行为，存在例外（未干净关闭、PERSIST_WAL 等）；该条不直接说明只读目录下打开失败的具体错误码。",
+                "references": [
+                  "S1-P1@18286-18693"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S1-P1@18286-18693",
+                    "text": "The WAL file exists for as long as any [database connection](c3ref/sqlite3.html) has the database open. Usually, the WAL file is deleted automatically when the last connection to the database closes."
+                  }
+                ],
+                "status": "supported",
+                "gap_ids": [
+                  "gap-3"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "tool_failures": [
+        {
+          "event": "tool_result",
+          "tool": "read_page",
+          "status": "failed",
+          "error_code": "invalid_response"
+        },
+        {
+          "event": "tool_result",
+          "tool": "read_page",
+          "status": "failed",
+          "error_code": "invalid_response"
+        },
+        {
+          "event": "tool_result",
+          "tool": "read_page",
+          "status": "failed",
+          "error_code": "invalid_response"
+        },
+        {
+          "event": "tool_result",
+          "tool": "read_page",
+          "status": "failed",
+          "error_code": "invalid_response"
+        },
+        {
+          "event": "tool_result",
+          "tool": "read_page",
+          "status": "failed",
+          "error_code": "invalid_response"
+        }
+      ],
+      "secrets_scan_passed": true
+    },
+    {
+      "file": "progress-scope-long-20261004.json",
+      "sha256": "7ae7a9344ba431a0140a8dbc700bc47326499e601ed1b3633a58679d5a677633",
+      "mode": "real_model_fixed_tavily",
+      "question": "请读取测试文档 https://docs.example.org/meridian/2.0/offline ，核实 Meridian 2.0 的 Windows 离线条件，覆盖系统、许可证、首次准备、离线期限与账户限制。我有 Pro、Windows 11，资源包已下载，准备使用共享访客账户连续离线 45 天。请判断方案是否可行，建议必须保留所列条件。版本首次引入时间若无法核实，请直接说明。",
+      "status": "completed",
+      "seconds": 16.67,
+      "real_model_requests": 5,
+      "initial_scripted_model_calls": 0,
+      "real_tavily_requests": 0,
+      "fixture_tavily_requests": 1,
+      "thinking_enabled_on_all_requests": true,
+      "selection_sender_hash_assertions_passed": true,
+      "reload_same_messages": true,
+      "quotes_checked_across_saved_versions": 4,
+      "final_revision": 1,
+      "final_gaps": [
+        {
+          "id": "gap-1",
+          "question": "Meridian 2.0（或离线模式）首次引入的版本/时间，页面未提供相关信息。",
+          "answer_impact": "只影响“版本首次引入时间”的延伸信息，不改变系统、许可证、首次准备、离线期限与账户限制的条件判断。",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        }
+      ],
+      "final_next_step": "已有正文支持全部条件判断：共享访客账户禁用离线模式、离线30天后需重新在线校验，与用户方案冲突；版本首次引入时间文档未提及，如实说明后直接回答。",
+      "final_targets": [],
+      "final_gap_links": [
+        {
+          "gap_id": "gap-1",
+          "status": "open",
+          "finding_ids": [],
+          "target_ids": []
+        }
+      ],
+      "final_coverage": {
+        "documents": [
+          {
+            "source_id": "S1",
+            "document_id": "S1-P1",
+            "snapshot_id": "710850a7785d63e3",
+            "content_kind": "page_text",
+            "title": "https://docs.example.org/meridian/2.0/offline",
+            "url": "https://docs.example.org/meridian/2.0/offline",
+            "total_characters": 13522,
+            "delivered_characters": 1977,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                1699
+              ],
+              [
+                13244,
+                13522
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-1",
+              "finding-2",
+              "finding-3",
+              "finding-4"
+            ]
+          }
+        ],
+        "not_displayed_document_ids": []
+      },
+      "checkpoint_requests": 0,
+      "provider_recovery_reasons": [],
+      "matches_final_production_source": false,
+      "tool_actions": [
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://docs.example.org/meridian/2.0/offline"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "query": "day",
+            "document_id": "S1-P1"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "query": "guest",
+            "document_id": "S1-P1"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "query": "introduc",
+            "document_id": "S1-P1"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "query": "period",
+            "document_id": "S1-P1"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "document_id": "S1-P1",
+            "query": "must"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "document_id": "S1-P1",
+            "query": "Windows"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "document_id": "S1-P1",
+            "query": "account"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "document_id": "S1-P1",
+            "query": "Offline mode"
+          }
+        },
+        {
+          "tool": "update_research",
+          "arguments": {
+            "base_revision": 0,
+            "goal": "核实 Meridian 2.0 Windows 离线条件并判断 Pro + Windows 11 + 已下载资源包 + 共享访客账户 + 离线45天 方案是否可行",
+            "next_step": "已有正文支持全部条件判断：共享访客账户禁用离线模式、离线30天后需重新在线校验，与用户方案冲突；版本首次引入时间文档未提及，如实说明后直接回答。",
+            "operations": [
+              {
+                "op": "add_finding",
+                "summary": "Meridian 2.0 文档称支持的平台为 Windows 10 或更高版本以及 macOS；页面同时声明这是用于工具评估的虚构产品。",
+                "conditions": "仅适用于该页面所描述的支持平台范围；页面自述为虚构评估用产品，不能推及真实产品。",
+                "references": [
+                  "S1-P1@0-365"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S1-P1@0-365",
+                    "text": "Windows 10 or later and macOS are supported."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "离线条件：需要 Pro 许可证；首次离线使用之前须联网并下载资源包。",
+                "conditions": "针对首次离线使用的前置准备；资源包需在联网状态下获取。",
+                "references": [
+                  "S1-P1@0-365"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S1-P1@0-365",
+                    "text": "A Pro license is required. Before the first offline use, connect to the internet and download the resource pack."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "离线期限：连续离线 30 天后，许可证必须再次联网校验。",
+                "conditions": "以“连续离线”计算；达到 30 天需重新联网校验，文档未说明该期限是否可延长。",
+                "references": [
+                  "S1-P1@13296-13522"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S1-P1@13296-13522",
+                    "text": "The license must be validated online again after 30 consecutive days offline."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "账户限制：共享访客账户不能使用离线模式。",
+                "conditions": "针对共享访客账户（shared guest accounts）；未说明其他账户类型的例外。",
+                "references": [
+                  "S1-P1@13333-13522"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S1-P1@13333-13522",
+                    "text": "Shared guest accounts cannot use offline mode."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_gap",
+                "question": "Meridian 2.0（或离线模式）首次引入的版本/时间，页面未提供相关信息。",
+                "answer_impact": "只影响“版本首次引入时间”的延伸信息，不改变系统、许可证、首次准备、离线期限与账户限制的条件判断。"
+              }
+            ]
+          }
+        }
+      ],
+      "tool_failures": [],
+      "secrets_scan_passed": true
+    },
+    {
+      "file": "progress-scope-live-20261004.json",
+      "sha256": "ae33050a90ed0fdd1ccf0fad3487d8a3ae1456928f675b74aee381b22f4f91ad",
+      "mode": "real_model_real_tavily_autonomous_source_discovery",
+      "question": "SQLite 数据库使用 WAL 模式，所在目录只读，-wal 和 -shm 文件都不存在，但另一个进程还可能修改数据库。有人建议连接 URI 加 immutable=1 来只读打开。请查找 SQLite 官方资料，核实这种建议是否适用、普通只读打开还缺什么条件、哪些版本边界能由文档确定，并给出来源。",
+      "status": "completed",
+      "seconds": 64.17,
+      "real_model_requests": 7,
+      "initial_scripted_model_calls": 0,
+      "real_tavily_requests": 6,
+      "fixture_tavily_requests": 0,
+      "thinking_enabled_on_all_requests": true,
+      "selection_sender_hash_assertions_passed": true,
+      "reload_same_messages": true,
+      "quotes_checked_across_saved_versions": 8,
+      "final_revision": 1,
+      "final_gaps": [
+        {
+          "id": "gap-1",
+          "question": "官方文档没有直接针对“目录对读者只读、-wal 和 -shm 不存在、但另一进程仍可能写入”这一组合给出建议；是否可用 immutable=1 需把 immutable 的契约（文件不可被任何进程修改）与 WAL 文档第 5 节三条件对照推出。",
+          "answer_impact": "决定最终建议是“不适用 immutable=1”还是“可用”，属于回答核心结论。",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        },
+        {
+          "id": "gap-2",
+          "question": "immutable 查询参数的首次引入版本：uri.html 只说所列参数截至 3.15.0 被识别，未给出 immutable 的引入版本。",
+          "answer_impact": "只影响版本边界陈述的精确度，不影响“本场景不可用 immutable=1”的主结论。",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        },
+        {
+          "id": "gap-3",
+          "question": "wal.html 第 5 节条件(1)表述为 -shm/-wal“已存在且可读”，而 SQLite 官方论坛帖称逻辑只读连接仍需对 -shm 有物理写权限；正文与论坛说法在“-shm 只读是否足够”上存在张力，未进一步核实 walformat 等页面。",
+          "answer_impact": "影响普通 mode=ro 在“-shm 已存在但读者无写权限”时是否可行的判断；对本场景（-shm 与 -wal 都不存在）不影响主结论。",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        }
+      ],
+      "final_next_step": "基于已保存的官方文档引用作答：immutable=1 因“文件仍可能被修改”前提不成立且有 SQLITE_CORRUPT/错误结果风险；普通 mode=ro 缺少三条件中的(1)(2)；版本边界给 3.22.0/3.7.7/3.7.4/3.15.0；保留“immutable 首次引入版本”与“-shm 写权限张力”为未确定项。",
+      "final_targets": [],
+      "final_gap_links": [
+        {
+          "gap_id": "gap-1",
+          "status": "open",
+          "finding_ids": [],
+          "target_ids": []
+        },
+        {
+          "gap_id": "gap-2",
+          "status": "open",
+          "finding_ids": [],
+          "target_ids": []
+        },
+        {
+          "gap_id": "gap-3",
+          "status": "open",
+          "finding_ids": [],
+          "target_ids": []
+        }
+      ],
+      "final_coverage": {
+        "documents": [
+          {
+            "source_id": "S16",
+            "document_id": "S16-P1",
+            "snapshot_id": "93834250652fdd30",
+            "content_kind": "page_text",
+            "title": "Write-Ahead Logging",
+            "url": "https://sqlite.org/wal.html",
+            "total_characters": 34845,
+            "delivered_characters": 4622,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                1663
+              ],
+              [
+                19545,
+                20555
+              ],
+              [
+                26234,
+                28183
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-1",
+              "finding-4"
+            ]
+          },
+          {
+            "source_id": "S3",
+            "document_id": "S3-P1",
+            "snapshot_id": "cfd09ff9f24d4551",
+            "content_kind": "page_text",
+            "title": "Uniform Resource Identifiers",
+            "url": "https://sqlite.org/uri.html",
+            "total_characters": 10791,
+            "delivered_characters": 4317,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                1267
+              ],
+              [
+                7584,
+                10634
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-2",
+              "finding-5"
+            ]
+          },
+          {
+            "source_id": "S4",
+            "document_id": "S4-P1",
+            "snapshot_id": "a7926db8073dd109",
+            "content_kind": "page_text",
+            "title": "Opening A New Database Connection",
+            "url": "https://sqlite.org/c3ref/open.html",
+            "total_characters": 15406,
+            "delivered_characters": 6115,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                1055
+              ],
+              [
+                7967,
+                13027
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-2"
+            ]
+          },
+          {
+            "source_id": "S17",
+            "document_id": "S17-P1",
+            "snapshot_id": "aef1ac765b87b7a9",
+            "content_kind": "page_text",
+            "title": "SQLite Release 3.22.0 On 2018-01-22",
+            "url": "https://sqlite.org/releaselog/3_22_0.html",
+            "total_characters": 6196,
+            "delivered_characters": 1800,
+            "ever_delivered": "part",
+            "current_input": "part",
+            "delivered_ranges": [
+              [
+                0,
+                1800
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-3"
+            ]
+          }
+        ],
+        "not_displayed_document_ids": []
+      },
+      "checkpoint_requests": 1,
+      "provider_recovery_reasons": [],
+      "matches_final_production_source": true,
+      "tool_actions": [
+        {
+          "tool": "tavily_search",
+          "arguments": {
+            "query": "SQLite URI immutable=1 read-only WAL mode database",
+            "include_domains": [
+              "sqlite.org"
+            ],
+            "max_results": 8,
+            "chunks_per_source": 2
+          }
+        },
+        {
+          "tool": "tavily_search",
+          "arguments": {
+            "query": "SQLite read-only WAL database requires -shm file writable directory",
+            "include_domains": [
+              "sqlite.org"
+            ],
+            "max_results": 8,
+            "chunks_per_source": 2
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/wal.html"
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/uri.html"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S16-P1-H11"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S16-P1-H14"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S3-P1-H6"
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/c3ref/open.html"
+          }
+        },
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://sqlite.org/releaselog/3_22_0.html"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S4-P1-H2"
+          }
+        },
+        {
+          "tool": "update_research",
+          "arguments": {
+            "base_revision": 0,
+            "goal": "核实“WAL 模式 + 目录只读 + 无 -wal/-shm + 可能有其他进程写入”时是否可用 immutable=1 只读打开，普通只读打开缺什么条件，以及文档能确定的版本边界。",
+            "next_step": "基于已保存的官方文档引用作答：immutable=1 因“文件仍可能被修改”前提不成立且有 SQLITE_CORRUPT/错误结果风险；普通 mode=ro 缺少三条件中的(1)(2)；版本边界给 3.22.0/3.7.7/3.7.4/3.15.0；保留“immutable 首次引入版本”与“-shm 写权限张力”为未确定项。",
+            "operations": [
+              {
+                "op": "add_finding",
+                "summary": "SQLite 官方 WAL 文档第 5 节：旧版 SQLite 要求有写权限才能读 WAL 模式数据库，该限制自 3.22.0（2018-01-22）起放宽。较新版本中，位于只读介质上或缺少写权限的 WAL 数据库仍可读，只要满足下列之一：(1) -shm 和 -wal 文件已存在且可读；(2) 数据库所在目录有写权限，以便创建 -shm/-wal；(3) 用 immutable 查询参数打开连接。文档并建议在把数据库烧录到只读介质前先转为 journal_mode=DELETE。",
+                "conditions": "适用于 SQLite ≥ 3.22.0；三条件满足其一即可读。文档未在此节区分并发写入情形下各条件的实际行为。",
+                "references": [
+                  "S16-P1@19545-20555"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S16-P1@19545-20555",
+                    "text": "This constraint was relaxed beginning with SQLite version 3.22.0 (2018-01-22)."
+                  },
+                  {
+                    "reference": "S16-P1@19545-20555",
+                    "text": "The -shm and -wal files already exist and are readable."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "uri.html 与 c3ref/open.html 对 immutable=1 的定义：它向 SQLite 声明底层数据库文件位于只读介质、即使更高权限的进程也不能修改它；SQLite 始终以只读打开 immutable 数据库文件，并跳过所有文件锁定与变更检测。若该文件实际发生变化，可能返回错误的查询结果和/或 SQLITE_CORRUPT 错误。",
+                "conditions": "immutable 成立的前提是文件确实不会被任何进程修改；文档明确把“文件实际会发生变化”列为出错风险场景。uri.html 注明其列出的查询参数截至 3.15.0（2016-10-14）被识别。",
+                "references": [
+                  "S3-P1@7584-10634",
+                  "S4-P1@7967-13027"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S3-P1@7584-10634",
+                    "text": "SQLite always opens immutable database files read-only and it skips all file locking and change detection on immutable database files."
+                  },
+                  {
+                    "reference": "S4-P1@7967-13027",
+                    "text": "Caution: Setting the immutable property on a database file that does in fact change can result in incorrect query results and/or SQLITE_CORRUPT errors."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "3.22.0 发行说明把该版本新增能力表述为：即使应用对数据库及其所在目录缺少写权限，也能读取 WAL 模式数据库，前提是 -shm 和 -wal 文件存在于该目录中。",
+                "conditions": "针对 3.22.0（2018-01-22）及之后；此条只覆盖 -shm/-wal 已存在的情形，与 WAL 文档第 5 节三条件列表一致（另两条为目录写权限、immutable）。",
+                "references": [
+                  "S17-P1@0-1800"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S17-P1@0-1800",
+                    "text": "Add the ability to read from WAL mode databases even if the application lacks write permission on the database and its containing directory, as long as the -shm and -wal files exist in that directory."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "WAL 文档第 8 节：自 3.7.4（2010-12-07）起，若在首次访问前把 locking_mode 设为 EXCLUSIVE，WAL 数据库可在无共享内存（即无 wal-index/-shm）情况下被创建、读取和写入；该用法要求该进程保证是唯一访问数据库的进程，并受相应限制（在 WAL 模式下锁定模式停留在 EXCLUSIVE）。",
+                "conditions": "需在首次 WAL 访问之前设置 EXCLUSIVE，且仅适用于进程独占访问数据库；与“另一个进程可能修改”的前提相冲突。",
+                "references": [
+                  "S16-P1@26234-28183"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S16-P1@26234-28183",
+                    "text": "a process can interact with a WAL database without using shared memory if that process is guaranteed to be the only process accessing the database."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "URI 文件名自 3.7.7（2011-06-23）起可用于 sqlite3_open() 等接口及 ATTACH，因而可通过 mode=ro 只读打开；uri.html 说明其列出的查询参数（含 immutable=1、mode、nolock、vfs 等）截至 3.15.0（2016-10-14）被 SQLite 识别，并说明 future 版本可能新增参数。",
+                "conditions": "文档只给出“所列参数截至 3.15.0 被识别”，未声明 immutable 参数的首次引入版本。",
+                "references": [
+                  "S3-P1@0-1267",
+                  "S3-P1@7584-10634"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S3-P1@0-1267",
+                    "text": "Beginning with version 3.7.7 (2011-06-23), the SQLite database file argument to the sqlite3_open(), sqlite3_open16(), and sqlite3_open_v2() interfaces and to the ATTACH command can be specified either as an ordinary filename or as a Uniform Resource Identifier or URI."
+                  },
+                  {
+                    "reference": "S3-P1@7584-10634",
+                    "text": "The following query parameters are recognized by SQLite as of version 3.15.0 (2016-10-14)."
+                  }
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_gap",
+                "question": "官方文档没有直接针对“目录对读者只读、-wal 和 -shm 不存在、但另一进程仍可能写入”这一组合给出建议；是否可用 immutable=1 需把 immutable 的契约（文件不可被任何进程修改）与 WAL 文档第 5 节三条件对照推出。",
+                "answer_impact": "决定最终建议是“不适用 immutable=1”还是“可用”，属于回答核心结论。"
+              },
+              {
+                "op": "add_gap",
+                "question": "immutable 查询参数的首次引入版本：uri.html 只说所列参数截至 3.15.0 被识别，未给出 immutable 的引入版本。",
+                "answer_impact": "只影响版本边界陈述的精确度，不影响“本场景不可用 immutable=1”的主结论。"
+              },
+              {
+                "op": "add_gap",
+                "question": "wal.html 第 5 节条件(1)表述为 -shm/-wal“已存在且可读”，而 SQLite 官方论坛帖称逻辑只读连接仍需对 -shm 有物理写权限；正文与论坛说法在“-shm 只读是否足够”上存在张力，未进一步核实 walformat 等页面。",
+                "answer_impact": "影响普通 mode=ro 在“-shm 已存在但读者无写权限”时是否可行的判断；对本场景（-shm 与 -wal 都不存在）不影响主结论。"
+              }
+            ]
+          }
+        }
+      ],
+      "tool_failures": [],
+      "secrets_scan_passed": true
+    },
+    {
+      "file": "progress-scope-long-final-20261004.json",
+      "sha256": "a74b60e63204c2ad716844e49139420011cf6a847da8358cef1c65771b18287b",
+      "mode": "real_model_fixed_tavily",
+      "question": "请读取测试文档 https://docs.example.org/meridian/2.0/offline ，核实 Meridian 2.0 的 Windows 离线条件，覆盖系统、许可证、首次准备、离线期限与账户限制。我有 Pro、Windows 11，资源包已下载，准备使用共享访客账户连续离线 45 天。请判断方案是否可行，建议必须保留所列条件。版本首次引入时间若无法核实，请直接说明。",
+      "status": "completed",
+      "seconds": 16.67,
+      "real_model_requests": 5,
+      "initial_scripted_model_calls": 0,
+      "real_tavily_requests": 0,
+      "fixture_tavily_requests": 1,
+      "thinking_enabled_on_all_requests": true,
+      "selection_sender_hash_assertions_passed": true,
+      "reload_same_messages": true,
+      "quotes_checked_across_saved_versions": 0,
+      "final_revision": 1,
+      "final_gaps": [
+        {
+          "id": "gap-1",
+          "question": "Meridian 2.0 离线功能（及 30 天验证、访客限制）于哪个版本首次引入，无法从该文档核实。",
+          "answer_impact": "用户明确要求：若版本首次引入时间无法核实，直接说明。此缺口决定回答中该项须标为「无法核实」，但不改变方案可行性的结论。",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        }
+      ],
+      "final_next_step": "已读完全文（13522 字符，含 0–119 号填充性 Operational note）。证据足以判定方案不可行，缺口（版本首次引入时间）文档未载，直接说明无法核实后作答。",
+      "final_targets": [],
+      "final_gap_links": [
+        {
+          "gap_id": "gap-1",
+          "status": "open",
+          "finding_ids": [],
+          "target_ids": []
+        }
+      ],
+      "final_coverage": {
+        "documents": [
+          {
+            "source_id": "S1",
+            "document_id": "S1-P1",
+            "snapshot_id": "710850a7785d63e3",
+            "content_kind": "page_text",
+            "title": "https://docs.example.org/meridian/2.0/offline",
+            "url": "https://docs.example.org/meridian/2.0/offline",
+            "total_characters": 13522,
+            "delivered_characters": 13522,
+            "ever_delivered": "full",
+            "current_input": "full",
+            "delivered_ranges": [
+              [
+                0,
+                13522
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-1",
+              "finding-2",
+              "finding-3",
+              "finding-4"
+            ]
+          }
+        ],
+        "not_displayed_document_ids": []
+      },
+      "checkpoint_requests": 0,
+      "provider_recovery_reasons": [],
+      "matches_final_production_source": true,
+      "tool_actions": [
+        {
+          "tool": "read_page",
+          "arguments": {
+            "url": "https://docs.example.org/meridian/2.0/offline"
+          }
+        },
+        {
+          "tool": "read_document",
+          "arguments": {
+            "document_id": "S1-P1",
+            "cursor": "eyJ2IjoxLCJzY29wZSI6ImMxNzI3Mzg2OGQ4YjQxNThhMmQ0NmY3NDhmNGJiNmVhIiwiZXBvY2giOiIwIiwia2luZCI6ImRvY3VtZW50IiwicmVmIjoiUzEtUDEiLCJzdGFydCI6MTY5OX0"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "query": "day",
+            "document_id": "S1-P1"
+          }
+        },
+        {
+          "tool": "read_document",
+          "arguments": {
+            "document_id": "S1-P1",
+            "cursor": "eyJ2IjoxLCJzY29wZSI6ImMxNzI3Mzg2OGQ4YjQxNThhMmQ0NmY3NDhmNGJiNmVhIiwiZXBvY2giOiIwIiwia2luZCI6ImRvY3VtZW50IiwicmVmIjoiUzEtUDEiLCJzdGFydCI6NzY5NH0"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "document_id": "S1-P1",
+            "query": "introduc"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "document_id": "S1-P1",
+            "query": "guest"
+          }
+        },
+        {
+          "tool": "find_in_documents",
+          "arguments": {
+            "document_id": "S1-P1",
+            "query": "validated"
+          }
+        },
+        {
+          "tool": "update_research",
+          "arguments": {
+            "base_revision": 0,
+            "goal": "核实 Meridian 2.0 Windows 离线条件（系统、许可证、首次准备、离线期限、账户限制），判断 Pro + Windows 11 + 资源包已下载 + 共享访客账户连续离线 45 天是否可行。",
+            "next_step": "已读完全文（13522 字符，含 0–119 号填充性 Operational note）。证据足以判定方案不可行，缺口（版本首次引入时间）文档未载，直接说明无法核实后作答。",
+            "operations": [
+              {
+                "op": "add_finding",
+                "summary": "Meridian 2.0 文档声明的支持平台为 Windows 10 或更高版本以及 macOS；Windows 11 属于支持范围。",
+                "conditions": "仅据该文档「Supported platforms」小节；文档为测试用虚构产品文档。未给出具体最低补丁/内部版本号。",
+                "references": [
+                  "S1-P1@0-1699"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "离线要求：需要 Pro 许可证；首次离线使用前需联网并下载资源包。",
+                "conditions": "文档「Offline requirements」小节；未说明资源包需更新频率或大小。",
+                "references": [
+                  "S1-P1@0-1699"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "许可证在连续离线 30 天后必须再次联网验证——即单次离线不得超过 30 天，用户计划的 45 天超过该上限。",
+                "conditions": "文档原文：\"The license must be validated online again after 30 consecutive days offline.\" 未给出宽限期或例外。",
+                "references": [
+                  "S1-P1@13296-13522"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_finding",
+                "summary": "文档「Limitations」明确：共享访客账户不能使用离线模式。",
+                "conditions": "文档原文：\"Shared guest accounts cannot use offline mode.\" 属硬性限制，无例外说明。",
+                "references": [
+                  "S1-P1@13333-13522"
+                ],
+                "status": "supported"
+              },
+              {
+                "op": "add_gap",
+                "question": "Meridian 2.0 离线功能（及 30 天验证、访客限制）于哪个版本首次引入，无法从该文档核实。",
+                "answer_impact": "用户明确要求：若版本首次引入时间无法核实，直接说明。此缺口决定回答中该项须标为「无法核实」，但不改变方案可行性的结论。"
+              }
+            ]
+          }
+        }
+      ],
+      "tool_failures": [],
+      "secrets_scan_passed": true
+    },
+    {
+      "file": "progress-scope-recovery-20261004.json",
+      "sha256": "de2620f245481bf12c1d0328eb12d81433ae1f642a8c907037c0113714cd9d00",
+      "mode": "real_model_scripted_prefix_cold_recovery_fixed_document",
+      "question": "请读取测试文档 https://docs.example.org/meridian/2.0/offline ，核实 Meridian 2.0 的 Windows 离线条件，覆盖系统、许可证、首次准备、离线期限与账户限制。我有 Pro、Windows 11，资源包已下载，准备使用共享访客账户连续离线 45 天。请判断方案是否可行，建议必须保留所列条件。版本首次引入时间若无法核实，请直接说明。",
+      "status": "completed",
+      "seconds": 18.65,
+      "real_model_requests": 7,
+      "initial_scripted_model_calls": 3,
+      "real_tavily_requests": 0,
+      "fixture_tavily_requests": 0,
+      "thinking_enabled_on_all_requests": true,
+      "selection_sender_hash_assertions_passed": true,
+      "reload_same_messages": true,
+      "quotes_checked_across_saved_versions": 2,
+      "final_revision": 3,
+      "final_gaps": [
+        {
+          "id": "gap-1",
+          "question": "连续离线期限与账户限制是否允许该方案",
+          "answer_impact": "直接影响45天共享访客方案及用户要求的条件列表",
+          "status": "resolved",
+          "resolution": "已读离线期限与限制：连续离线 30 天后需重新联网验证；共享访客账户不能使用离线模式。两项均不满足用户方案。",
+          "references": [
+            {
+              "source_id": "S1",
+              "document_id": "S1-P1",
+              "start": 11952,
+              "end": 13461
+            },
+            {
+              "source_id": "S1",
+              "document_id": "S1-P1",
+              "start": 13461,
+              "end": 13522
+            }
+          ]
+        },
+        {
+          "id": "gap-2",
+          "question": "离线模式首次引入时间",
+          "answer_impact": "可明确说明未核实，不改变本题五项使用条件",
+          "status": "open",
+          "resolution": "",
+          "references": []
+        }
+      ],
+      "final_next_step": "已核实全部五项条件，可回答：方案不可行（共享访客账户不能用离线模式；45天超过30天验证期）；版本首次引入时间文档未提及，保持未核实。",
+      "final_targets": [],
+      "final_gap_links": [
+        {
+          "gap_id": "gap-1",
+          "status": "resolved",
+          "finding_ids": [
+            "finding-2",
+            "finding-3"
+          ],
+          "target_ids": []
+        },
+        {
+          "gap_id": "gap-2",
+          "status": "open",
+          "finding_ids": [],
+          "target_ids": []
+        }
+      ],
+      "final_coverage": {
+        "documents": [
+          {
+            "source_id": "S1",
+            "document_id": "S1-P1",
+            "snapshot_id": "710850a7785d63e3",
+            "content_kind": "page_text",
+            "title": "https://docs.example.org/meridian/2.0/offline",
+            "url": "https://docs.example.org/meridian/2.0/offline",
+            "total_characters": 13522,
+            "delivered_characters": 13522,
+            "ever_delivered": "full",
+            "current_input": "full",
+            "delivered_ranges": [
+              [
+                0,
+                13522
+              ]
+            ],
+            "more_ranges": 0,
+            "used_by": [
+              "finding-1",
+              "finding-2",
+              "finding-3",
+              "gap-1"
+            ]
+          }
+        ],
+        "not_displayed_document_ids": []
+      },
+      "checkpoint_requests": 0,
+      "provider_recovery_reasons": [
+        "missing_continuation",
+        "missing_continuation",
+        "missing_continuation",
+        "missing_continuation",
+        "missing_continuation",
+        "missing_continuation",
+        "missing_continuation"
+      ],
+      "matches_final_production_source": true,
+      "tool_actions": [
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H3"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H3",
+            "cursor": "eyJ2IjoxLCJzY29wZSI6Ijc3NDBiZWMzYWQ0MDQwZTlhZTk4YjJmY2EzM2JhNGJiIiwiZXBvY2giOiIwIiwia2luZCI6InNlY3Rpb24iLCJyZWYiOiJTMS1QMS1IMyIsInN0YXJ0Ijo2MDU5fQ"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H3",
+            "cursor": "eyJ2IjoxLCJzY29wZSI6Ijc3NDBiZWMzYWQ0MDQwZTlhZTk4YjJmY2EzM2JhNGJiIiwiZXBvY2giOiIwIiwia2luZCI6InNlY3Rpb24iLCJyZWYiOiJTMS1QMS1IMyIsInN0YXJ0IjoxMTk1Mn0"
+          }
+        },
+        {
+          "tool": "read_document",
+          "arguments": {
+            "document_id": "S1-P1",
+            "view": "outline"
+          }
+        },
+        {
+          "tool": "read_section",
+          "arguments": {
+            "section_ref": "S1-P1-H4"
+          }
+        },
+        {
+          "tool": "update_research",
+          "arguments": {
+            "base_revision": 2,
+            "operations": [
+              {
+                "op": "add_finding",
+                "summary": "离线许可证在连续离线 30 天后必须重新联网验证；因此连续离线最长 30 天。",
+                "conditions": "针对 Meridian 2.0 离线指南；文档未给出其他情形例外或可重置规则。",
+                "status": "supported",
+                "references": [
+                  "S1-P1@11952-13461"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S1-P1@11952-13461",
+                    "text": "The license must be validated online again after 30 consecutive days offline."
+                  }
+                ],
+                "gap_ids": [
+                  "gap-1"
+                ]
+              },
+              {
+                "op": "add_finding",
+                "summary": "共享访客账户无法使用离线模式，属于明文列出的限制。",
+                "conditions": "Meridian 2.0 离线指南 Limitations 一节；未列出例外。",
+                "status": "supported",
+                "references": [
+                  "S1-P1@13461-13522"
+                ],
+                "evidence_quotes": [
+                  {
+                    "reference": "S1-P1@13461-13522",
+                    "text": "Shared guest accounts cannot use offline mode."
+                  }
+                ],
+                "gap_ids": [
+                  "gap-1"
+                ]
+              },
+              {
+                "op": "resolve_gap",
+                "id": "gap-1",
+                "resolution": "已读离线期限与限制：连续离线 30 天后需重新联网验证；共享访客账户不能使用离线模式。两项均不满足用户方案。",
+                "references": [
+                  "S1-P1@11952-13461",
+                  "S1-P1@13461-13522"
+                ]
+              },
+              {
+                "op": "remove_read_target",
+                "id": "target-1"
+              }
+            ],
+            "next_step": "已核实全部五项条件，可回答：方案不可行（共享访客账户不能用离线模式；45天超过30天验证期）；版本首次引入时间文档未提及，保持未核实。"
+          }
+        }
+      ],
+      "tool_failures": [],
+      "secrets_scan_passed": true
+    }
+  ],
+  "manual_assessment": {
+    "live": {
+      "core_question": "Correctly rejected immutable for a potentially mutable file and obtained WAL alternatives",
+      "version_scope": "Explicitly said as-of recognition does not prove first introduction",
+      "stopping": "Saved three open gaps with impacts and answered; did not chase WAL latest-commit behavior",
+      "progress_quality_limit": "A scenario inference remained an open core gap even while the answer used that inference",
+      "semantic_limit": "The absence of WAL files was described as implying no active connection; that exclusivity was not established by the cited text",
+      "source_complete_limit": "No whole-page completion required; relevant sections were used"
+    },
+    "long_final": {
+      "retrieval": "Full fixture body delivered; license validation at the tail and guest exclusion both obtained",
+      "stopping": "Kept first-introduction gap open, updated next_step to answer",
+      "advice": "Did not guarantee a reset cycle and distinguished necessary from sufficient conditions"
+    },
+    "cold_recovery": {
+      "setup": "Three scripted model calls; initial incomplete body, linked read target and two gaps",
+      "behavior": "New Session triggered missing_continuation; real model read the selected section through three pages, read Limitations, resolved core gap and removed target",
+      "preservation": "Kept version-history gap open and changed next_step to answer",
+      "semantic_failure": "Answer asserted expiration beginning on day 31; source only requires online revalidation after 30 consecutive offline days",
+      "interpretation": "Supports saved state guiding recovery in this setup; does not prove autonomous initial decomposition or semantic correctness"
+    },
+    "control_comparison": {
+      "control_calls": 6,
+      "current_calls": 9,
+      "interpretation": "No demonstrated request-count improvement. One sample per version, several missing fixture URLs in current, model randomness, and subsequent prompt revision prevent a reliable efficiency conclusion",
+      "fixture_error_boundary": "Early cached current trial returned invalid_response when the model requested an uncached URL. The reusable runner now labels absent fixture pages explicitly; these are not real Tavily failures"
+    },
+    "first_long_trial": "Located required facts but inferred a reset cycle; led to adding the necessary-versus-sufficient guidance",
+    "remaining": [
+      "Literal quote and valid range do not establish semantic support",
+      "The exact expiration mechanism and absence-based inferences are still susceptible to overstatement",
+      "Autonomous gap-to-finding links remain weak; cold recovery linked them only after scripted setup",
+      "Stopping and cost improvements need broader repeated tasks; no causal or statistical claim"
+    ]
+  },
+  "fixture_origin": {
+    "cached_official_text_file": "progress-evidence-sqlite-open-research-retest-20261003.json",
+    "fictional_long_body": "scripts/check_documents.py LONG_PAGE",
+    "cold_prefix": "Scripted normal run_agent calls under current config, not edited old configuration hashes"
+  },
+  "limits": [
+    "All model requests kept reasoning enabled; no on-off comparison",
+    "No private reasoning text stored or examined; rationale inferred only from public actions and saved state",
+    "Completed status and source matches do not certify final answer quality",
+    "Program tests validate preservation and atomic failure; real model behavior is only these observed samples"
+  ]
+}

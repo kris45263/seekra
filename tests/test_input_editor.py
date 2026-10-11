@@ -117,7 +117,7 @@ class InputEditorTests(unittest.IsolatedAsyncioTestCase):
             def handle(text, cancel):
                 if text == '/exit':
                     return 0
-                run_question(text,client=client,config=config,session=session,max_iterations=2,
+                run_question(text,client=client,config=config,session=session,
                              verbose=False,cancel=cancel)
             editor = ReplInput(input=pipe,output=DummyOutput())
             task = asyncio.create_task(editor.run_async(handle))

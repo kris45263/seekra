@@ -16,6 +16,7 @@ from .display import AgentDisplay, display_text, session_transcript
 from .input import ReplInput
 from .deepseek import StreamProtocolError
 from .runtime import ContentOutputError
+from .retrieval import TavilyTransport
 
 
 REPL_HELP = """/help  查看帮助
@@ -48,7 +49,7 @@ def read_config(path: Path) -> dict[str, str]:
 
 
 def run_question(question: str, *, client: httpx.Client, config: dict,
-                 session: Session, max_iterations: int, verbose: bool, structured_think: bool = False,
+                 session: Session, verbose: bool, structured_think: bool = False,
                  resume: bool = False, max_context_chars: int = 120000, cancel=None) -> int:
     """执行一个问题并报告错误；失败时由调用者决定退出还是继续输入。"""
     if resume and (session.last_run is None or session.last_run['status'] == 'completed'):
@@ -68,8 +69,8 @@ def run_question(question: str, *, client: httpx.Client, config: dict,
         answer = run_agent(
             question, client=client, session=session, model=config["DEEPSEEK_MODEL"],
             deepseek_api_key=config["DEEPSEEK_API_KEY"], tavily_api_key=config["TAVILY_API_KEY"],
-            max_iterations=max_iterations,
             structured_think=structured_think,
+            thinking=True,
             on_content=view.content, on_event=event,
             resume=resume, max_context_chars=max_context_chars, cancel=cancel,
         )
@@ -106,13 +107,13 @@ def run_question(question: str, *, client: httpx.Client, config: dict,
         if started:
             view.usage_summary(usage_before, session.usage_totals())
             if not storage_or_output_failed and (session.last_run or {}).get('status') != 'interrupted':
-                hint = continuation_hint(session, max_iterations)
+                hint = continuation_hint(session)
                 if hint:
                     print(hint, file=sys.stderr)
     return 1
 
 
-def continuation_hint(session, max_iterations):
+def continuation_hint(session):
     run = session.last_run
     if run is None or run['status'] == 'completed':
         return ''
@@ -122,15 +123,11 @@ def continuation_hint(session, max_iterations):
     messages = run.get('messages', [])
     if messages and messages[-1]['role'] == 'assistant' and not messages[-1].get('tool_calls') and messages[-1].get('content'):
         return '回答已保存，输入 /continue 完成恢复即可。'
-    if run['calls'] >= max_iterations:
-        if session.path is None:
-            return '已达到调用上限，可以提交新问题。当前是临时对话，退出后无法继续这次回答。'
-        return f'上次执行已达调用上限；提高 --max-iterations 后用 --continue {session.id} 续接，或提交新问题。'
     if run['status'] == 'paused':
         code = run.get('error_code')
         # 旧记录没有错误码，只在明确的历史原因上识别次数限制。
         if code == 'iteration_limit' or (not code and (run.get('error') or '').startswith('达到 ')):
-            return '调用次数现在还有余量，输入 /continue 继续。'
+            return '上次因旧版调用次数限制暂停。当前不设次数限制，但续接仍要求原模型、提示词和工具配置一致；配置已变时请使用原版本续接，或提交新问题回查保存资料。'
         if code == 'context_limit' or (not code and '上下文字符上限' in (run.get('error') or '')):
             if session.path is None:
                 return '请求内容超过上下文限制；可以提交较短的新问题。当前未保存到磁盘，退出后无法续接。'
@@ -157,9 +154,7 @@ def main() -> int:
                         help="配置文件路径，默认读取当前工作目录的 .env")
     parser.add_argument("question", nargs="?", help="单次研究问题，请用引号包住")
     parser.add_argument("--repl", action="store_true", help="启动连续对话，默认自动保存会话")
-    parser.add_argument("--max-iterations", type=int, default=12, help="每个问题最多模型决策次数，默认 12")
     parser.add_argument("--verbose", action="store_true", help="显示工具参数、用量和计时等详细诊断")
-    parser.add_argument("--structured-think", action="store_true", help="实验：使用结构化显式研究笔记")
     parser.add_argument("--session-dir", type=Path, default=Path('.seekra/sessions'), help="本地会话目录，默认启动目录下 .seekra/sessions")
     parser.add_argument("--session", metavar="ID", help="打开已有会话后提问或进入 REPL")
     parser.add_argument("--resume", nargs='?', const='', metavar="ID", help="打开最近有内容的会话进入 REPL，也可指定 ID")
@@ -178,8 +173,6 @@ def main() -> int:
         parser.error("--no-session 不能与 --session、--continue 或 --sessions 一起使用")
     if args.session and (args.continue_session or args.sessions):
         parser.error("--session 不能与 --continue 或 --sessions 一起使用")
-    if args.max_iterations < 1:
-        parser.error("最大循环次数必须大于零")
     if args.max_context_chars < 2000:
         parser.error("上下文字符上限至少为 2000")
 
@@ -230,10 +223,10 @@ def main() -> int:
         return 1
     if session.path and not args.repl:
         print(f'会话：{session.id}（自动保存）',file=sys.stderr)
-    with httpx.Client() as client:
+    with httpx.Client(mounts={'https://api.tavily.com': TavilyTransport()}) as client:
         if not args.repl:
             return run_question(args.question, client=client, config=config, session=session,
-                                max_iterations=args.max_iterations, verbose=args.verbose, structured_think=args.structured_think,
+                                verbose=args.verbose,
                                 resume=args.continue_session is not None, max_context_chars=args.max_context_chars)
         editor = ReplInput()
         def show_session(message=''):
@@ -241,7 +234,7 @@ def main() -> int:
             transcript = session_transcript(session, secrets)
             if session.recovered_tail:
                 transcript += '\n已载入完整记录；末尾一段未写完整的记录未载入。\n'
-            hint = continuation_hint(session, args.max_iterations)
+            hint = continuation_hint(session)
             if hint and hint != (session.last_run or {}).get('error'):
                 transcript += '\n' + hint + '\n'
             if message:
@@ -315,7 +308,7 @@ def main() -> int:
             if command != '/continue' and session.last_run and session.last_run['status'] != 'completed':
                 print('开始新问题后，/continue 将不再接续之前未完成的回答。', file=sys.stderr)
             status = run_question(None if command == '/continue' else question, client=client, config=config, session=session,
-                         max_iterations=args.max_iterations, verbose=args.verbose, structured_think=args.structured_think,
+                         verbose=args.verbose,
                          resume=command == '/continue', max_context_chars=args.max_context_chars, cancel=cancel)
             if status == 74:
                 return status

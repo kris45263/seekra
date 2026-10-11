@@ -13,7 +13,8 @@ import httpx
 from seekra.agent import run_agent
 from seekra.cli import read_config
 from seekra.session import Session
-from seekra.tools import tool_definitions
+from seekra.runtime import CancellationToken
+from seekra.tools import legacy_tool_definitions as tool_definitions
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,15 +51,18 @@ def main():
         args.output.write_text(text+'\n',encoding='utf-8')
 
     for mode in ['none','free','structured','structured','free','none']:
-        trial={'mode':mode,'requests':[],'events':[]}
+        trial={'mode':mode,'requests':[],'events':[],'external_decision_budget':6}
         record['trials'].append(trial)
         session=deepcopy(seed)
 
         def capture(request):
             trial['requests'].append({'url':str(request.url),'body':json.loads(request.content)})
 
+        cancel = CancellationToken()
         def event(name,**details):
             trial['events'].append({'event':name,**details})
+            if name == 'tool_result' and session.last_run['calls'] >= 6 and not session.last_run['pending']:
+                cancel.cancel()
             if name in ['model_call','tool_call','final_answer','end']:
                 print(mode,name,details.get('round'),flush=True)
 
@@ -71,8 +75,8 @@ def main():
                     event_hooks={'request':[capture]}) as client:
                 trial['answer']=run_agent(question,client=client,model=config['DEEPSEEK_MODEL'],
                     deepseek_api_key=config['DEEPSEEK_API_KEY'],tavily_api_key=config['TAVILY_API_KEY'],
-                    session=session,structured_think=mode=='structured',max_iterations=6,on_event=event)
-        except Exception as exc:
+                    session=session,structured_think=mode=='structured',cancel=cancel,on_event=event)
+        except (Exception, KeyboardInterrupt) as exc:
             trial['error']=type(exc).__name__
         save()
     requests=[deepcopy(t['requests'][0]['body']) for t in record['trials']]

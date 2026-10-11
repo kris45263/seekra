@@ -33,7 +33,7 @@ class UsageTests(unittest.TestCase):
             with httpx.Client(transport=httpx.MockTransport(lambda r:httpx.Response(code))) as client, \
                  redirect_stdout(io.StringIO()),redirect_stderr(err):
                 run_question('问题',client=client,config={'DEEPSEEK_API_KEY':'fake','TAVILY_API_KEY':'fake','DEEPSEEK_MODEL':'test'},
-                             session=s,max_iterations=2,verbose=False)
+                             session=s,verbose=False)
             self.assertIn(str(code),s.last_run['error'])
             self.assertIn(s.last_run['error'],err.getvalue())
             if code!=401:
@@ -61,7 +61,7 @@ class UsageTests(unittest.TestCase):
                                       content='data: '+json.dumps(data)+'\n\ndata: [DONE]\n\n')
             with httpx.Client(transport=httpx.MockTransport(respond)) as client, redirect_stdout(io.StringIO()), redirect_stderr(err):
                 status = run_question('问题', client=client, config={'DEEPSEEK_API_KEY':'fake','TAVILY_API_KEY':'fake','DEEPSEEK_MODEL':'test'},
-                                      session=Session(),max_iterations=3,verbose=False)
+                                      session=Session(),verbose=False)
             self.assertEqual(status, 1 if fail else 0)
             self.assertEqual(err.getvalue().count('本次 token'),1)
             self.assertIn('输入 100，输出 2' if fail else '输入 200，输出 4',err.getvalue())

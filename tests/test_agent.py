@@ -43,12 +43,12 @@ class AgentTests(unittest.TestCase):
         from seekra.agent import run_agent
         self.run_agent = run_agent
 
-    def run_with(self, handler, limit=12):
+    def run_with(self, handler):
         """用内存传输执行一次研究；密钥全部为测试占位值。"""
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             return self.run_agent("调查项目最新版本", client=client,
                                   model="test-deepseek", deepseek_api_key="fake-ds",
-                                  tavily_api_key="fake-tv", max_iterations=limit)
+                                  tavily_api_key="fake-tv")
 
     def test_search_think_then_search_depends_on_previous_result(self):
         """两种不同搜索结果必须引出不同的后续查询，且所有历史逐轮保留。"""
@@ -67,9 +67,11 @@ class AgentTests(unittest.TestCase):
                     self.assertEqual(str(request.url), "https://api.deepseek.com/chat/completions")
                     self.assertEqual(request.headers["authorization"], "Bearer fake-ds")
                     self.assertEqual(body["model"], "test-deepseek")
-                    self.assertEqual(body["thinking"], {"type": "disabled"})
+                    self.assertEqual(body["thinking"], {"type": "enabled"})
+                    self.assertNotIn('tool_choice', body)
                     self.assertEqual({t["function"]["name"] for t in body["tools"]},
-                                     {"tavily_search", "think_tool", "read_page", "list_history", "read_history"})
+                                     {"tavily_search", "read_page", "list_history", "read_history",
+                                      "list_documents", "find_in_documents", "read_document", "read_section", "update_research"})
                     messages = body["messages"]
                     if histories:
                         self.assertEqual(messages[1:len(histories[-1])], histories[-1][1:])
@@ -82,10 +84,11 @@ class AgentTests(unittest.TestCase):
                     self.assertEqual(messages[-1]["tool_call_id"], messages[-2]["tool_calls"][0]["id"])
                     if turn == 2:
                         found = json.loads(messages[-1]["content"])["results"][0]["content"]
-                        return reply(calls=[call("think_tool", {"reflection": f"缺少 {found} 版本详情"}, "think")])
+                        return reply(calls=[call("update_research", {'base_revision':0,'operations':[
+                            {'op':'add_gap','question':f'缺少 {found} 版本详情'}]}, "progress")])
                     if turn == 3:
                         # 后续搜索词从收到的工具结果提取，不由被测循环预先安排。
-                        found = json.loads(messages[-1]["content"])["note"].split("缺少 ")[1].split(" 版本")[0]
+                        found = json.loads(messages[-1]["content"])["state"]["gaps"][0]['question'].split("缺少 ")[1].split(" 版本")[0]
                         return reply(calls=[call("tavily_search", {"query": f"{found} 版本详情"}, "search2")])
                     self.assertIn("版本 2 已发布", messages[-1]["content"])
                     return reply("版本 2 已发布。[发布说明](https://example.org/release)")
@@ -111,21 +114,26 @@ class AgentTests(unittest.TestCase):
             messages = json.loads(request.content)["messages"]
             seen.append(messages)
             if len(seen) == 1:
-                return reply("继续整理", [call("think_tool", {"reflection": "事实"}, "a"),
-                                             call("think_tool", {"reflection": "缺口"}, "b")])
+                return reply("继续整理", [call("list_documents", {}, "a"), call("list_documents", {}, "b")])
             self.assertEqual([m["tool_call_id"] for m in messages[-2:]], ["a", "b"])
             self.assertEqual(messages[-3]["content"], "继续整理")
             return reply("完成")
         self.assertEqual(self.run_with(handler), "完成")
 
-    def test_limit_is_not_a_final_answer(self):
-        """不断调用工具时严格限制模型请求次数并报告未完成。"""
+    def test_external_cancel_is_not_a_final_answer(self):
+        """调用者取消后保留未完成状态，不产生最终答案。"""
+        from seekra.runtime import CancellationToken
+        cancel = CancellationToken()
         seen = []
         def handler(request):
             seen.append(request)
-            return reply(calls=[call("think_tool", {"reflection": "仍缺信息"})])
-        with self.assertRaisesRegex(RuntimeError, "上限"):
-            self.run_with(handler, limit=2)
+            return reply(calls=[call("list_documents", {})])
+        def event(name, **details):
+            if name == 'tool_result' and len(seen) == 2:
+                cancel.cancel()
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client, self.assertRaises(KeyboardInterrupt):
+            self.run_agent('调查', client=client, model='test', deepseek_api_key='fake-ds',
+                           tavily_api_key='fake-tv', cancel=cancel, on_event=event)
         self.assertEqual(len(seen), 2)
 
     def test_invalid_arguments_and_unknown_tools_are_returned_to_model(self):
@@ -192,9 +200,11 @@ class ConfigTests(unittest.TestCase):
 class VerboseTests(unittest.TestCase):
     """验证开关仅改变终端进度，不改变请求、历史或最终答案。"""
 
-    def test_repeated_search_results_are_shown_in_full_each_time(self):
-        """跨搜索不去重、不截断片段，且正常还原换行。"""
+    def test_long_search_results_keep_full_text_behind_bounded_views(self):
+        """片段预览有界，原始片段和各次获取仍完整保存。"""
         from seekra.agent import run_agent
+        from seekra.session import Session
+        session = Session()
         snippet = "第一行\n" + "完整片段" * 500 + "\n最后一行"
         def handler(request):
             if request.url.host == "api.tavily.com":
@@ -207,15 +217,22 @@ class VerboseTests(unittest.TestCase):
         err = io.StringIO()
         with httpx.Client(transport=httpx.MockTransport(handler)) as client, redirect_stderr(err):
             run_agent("问题", client=client, model="m", deepseek_api_key="fake-ds",
-                      tavily_api_key="fake-tv", on_event=AgentDisplay(True, secrets=('fake-ds', 'fake-tv')).event)
-        self.assertEqual(err.getvalue().count(snippet), 2)
+                      tavily_api_key="fake-tv", session=session,
+                      on_event=AgentDisplay(True, secrets=('fake-ds', 'fake-tv')).event)
+        records = [r for r in session.records if r['kind'] == 'tool_completed']
+        self.assertEqual([r['retrieval_result']['results'][0]['content'] for r in records], [snippet, snippet])
+        for record in records:
+            row = json.loads(record['result'])['results'][0]
+            self.assertTrue(row['truncated'])
+            self.assertEqual(session.documents.read_document(row['document_id'])['content'], snippet)
+        self.assertEqual(err.getvalue().count('片段仅展示部分'), 2)
         self.assertEqual(err.getvalue().count("https://example.org/repeated"), 2)
         self.assertNotIn("答案正文", err.getvalue())
 
     def test_failures_and_empty_search_remain_observable(self):
-        """空结果、搜索错误和上限都有真实事件，错误结束不伪装成答案。"""
+        """空结果、搜索错误和取消都有真实事件，错误结束不伪装成答案。"""
         from seekra.agent import run_agent
-        for mode in ("empty", "search_error", "limit", "model_error", "truncated"):
+        for mode in ("empty", "search_error", "cancel", "model_error", "truncated"):
             with self.subTest(mode=mode):
                 err = io.StringIO()
                 def handler(request):
@@ -226,18 +243,20 @@ class VerboseTests(unittest.TestCase):
                         return httpx.Response(401, text="不要显示的远端正文")
                     if mode == "truncated":
                         return reply("截断的显式内容", finish="length")
-                    if len(json.loads(request.content)["messages"]) == 2 or mode == "limit":
+                    if mode == 'cancel' and len(json.loads(request.content)['messages']) > 2:
+                        raise KeyboardInterrupt()
+                    if len(json.loads(request.content)["messages"]) == 2:
                         return reply(calls=[call("tavily_search", {"query": "查询"})])
                     return reply("信息不足")
                 with httpx.Client(transport=httpx.MockTransport(handler)) as client, redirect_stderr(err):
-                    if mode in {"limit", "model_error", "truncated"}:
-                        with self.assertRaises((RuntimeError, httpx.HTTPStatusError)):
+                    if mode in {"cancel", "model_error", "truncated"}:
+                        with self.assertRaises((RuntimeError, httpx.HTTPStatusError, KeyboardInterrupt)):
                             run_agent("问题", client=client, model="m", deepseek_api_key="fake-ds",
-                                      tavily_api_key="fake-tv", on_event=AgentDisplay(True).event, max_iterations=2)
+                                      tavily_api_key="fake-tv", on_event=AgentDisplay(True).event)
                     else:
                         run_agent("问题", client=client, model="m", deepseek_api_key="fake-ds",
                                   tavily_api_key="fake-tv", on_event=AgentDisplay(True, secrets=('fake-ds', 'fake-tv')).event)
-                if mode in {"limit", "model_error", "truncated"}:
+                if mode in {"cancel", "model_error", "truncated"}:
                     self.assertIn("异常结束", err.getvalue())
                     self.assertNotIn("模型决定：直接回答", err.getvalue())
                 else:
@@ -257,8 +276,12 @@ class VerboseTests(unittest.TestCase):
         self.assertNotIn("fake-tv", err.getvalue())
         self.assertNotIn("问题 fake-tv", err.getvalue())
 
-    def test_cli_verbose_keeps_requests_identical_and_separates_output(self):
+    @patch('seekra.session.datetime')
+    @patch('seekra.agent.uuid4')
+    def test_cli_verbose_keeps_requests_identical_and_separates_output(self, run_uuid, clock):
         """使用真实命令行入口及循环，仅模拟配置和 HTTP 传输。"""
+        run_uuid.return_value.hex = 'fixed-verbose-run'
+        clock.now.return_value.isoformat.return_value = '2026-09-30T00:00:00+00:00'
         from seekra.cli import main
         runs = []
         for verbose in (False, True):
@@ -281,9 +304,11 @@ class VerboseTests(unittest.TestCase):
                     return response
                 if len(messages) == 4:
                     data = json.loads(messages[-1]["content"])
-                    self.assertEqual(data["processing"]["removed"], {"duplicate": 1, "empty_content": 1})
+                    self.assertNotIn('processing', data)  # 诊断计数保留在日志，不进入模型阅读视图。
+                    self.assertIn('document_id', data['results'][0])
                     self.assertEqual(len(data["results"]), 1)
-                    return reply(calls=[call("think_tool", {"reflection": "内部笔记正文"})])
+                    return reply(calls=[call('update_research',{'base_revision':0,'operations':[
+                        {'op':'add_gap','question':'内部笔记正文'}]})])
                 return reply("这是测试用的答案正文。")
 
             client = httpx.Client(transport=httpx.MockTransport(handler))

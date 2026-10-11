@@ -100,7 +100,7 @@ class RetrievalEdgeTests(unittest.TestCase):
         structured = tool_definitions(True)
         structured[0]["function"]["name"] = "changed"
         self.assertEqual(json.dumps(TOOLS, sort_keys=True), original)
-        self.assertIn("reflection", tool_definitions()[1]["function"]["parameters"]["properties"])
+        self.assertNotIn('think_tool', {d['function']['name'] for d in tool_definitions()})
         args = {"goal": "目标", "observations": "观察", "assessment": "判断", "next_step": "下一步", "references": []}
         bad = [{**args, "goal": ""}, {**args, "observations": 2}, {**args, "references": "x"},
                {**args, "references": [1]}, {**args, "references": ["note1"]}, {**args, "extra": True}]
@@ -111,17 +111,22 @@ class RetrievalEdgeTests(unittest.TestCase):
                                                     structured_think=True, known_operations={"note1": "think_tool"}))
                     self.assertEqual(result["error_code"], "invalid_arguments")
 
-    def test_cli_structured_flag_reaches_real_request(self):
-        """CLI 实验开关实际改变工具 schema，默认启动不会受到影响。"""
+    def test_cli_uses_progress_without_legacy_think_flag(self):
+        """默认集合统一到进展；旧 CLI 开关不能静默改变新协议。"""
         from seekra.cli import main
         for enabled in (False, True):
             def handler(request):
                 body = json.loads(request.content)
-                fields = next(t["function"]["parameters"]["properties"] for t in body["tools"] if t["function"]["name"] == "think_tool")
-                self.assertEqual("goal" in fields, enabled)
+                self.assertNotIn('think_tool',{t['function']['name'] for t in body['tools']})
+                fields = next(t['function']['parameters']['properties'] for t in body['tools'] if t['function']['name']=='update_research')
+                self.assertIn('operations',fields)
                 return reply("答案")
             client = httpx.Client(transport=httpx.MockTransport(handler))
             with patch("sys.argv", ["seekra", "问题", "--no-session"] + (["--structured-think"] if enabled else [])), \
                  patch("seekra.cli.read_config", return_value={"DEEPSEEK_API_KEY": "d", "DEEPSEEK_MODEL": "m", "TAVILY_API_KEY": "t"}), \
                  patch("seekra.cli.httpx.Client", return_value=client), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-                self.assertEqual(main(), 0)
+                if enabled:
+                    with self.assertRaises(SystemExit) as stopped: main()
+                    self.assertEqual(stopped.exception.code,2)
+                else:
+                    self.assertEqual(main(),0)

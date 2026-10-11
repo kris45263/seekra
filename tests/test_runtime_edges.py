@@ -17,6 +17,60 @@ from seekra.display import AgentDisplay
 
 
 class RuntimeEdgeTests(unittest.TestCase):
+    def test_context_pause_does_not_publish_unsent_system_prompt(self):
+        class Model:
+            identity = 'test:context-pause'
+            def generate(self, messages, tools, **kwargs):
+                return ModelResponse({'role': 'assistant', 'tool_calls': [{
+                    'id': 'large', 'type': 'function', 'function': {'name': 'probe',
+                    'arguments': json.dumps({'payload': 'x' * 3000})}}]}, 'tool_calls')
+        registry = ToolRegistry()
+        registry.register({'type': 'function', 'function': {'name': 'probe',
+                          'parameters': {'type': 'object'}}}, lambda *args: '{"status":"success"}')
+        with tempfile.TemporaryDirectory() as directory:
+            session = Session.create(Path(directory))
+            result = execute_run('问题', model=Model(), registry=registry, session=session,
+                                 max_context_chars=5000)
+            self.assertEqual(result.status, 'paused')
+            restored = Session.load(session.path)
+            self.assertEqual(restored.last_run['messages'], session.last_run['messages'])
+            self.assertEqual(restored.last_run['calls'], 1)
+
+    def test_run_passes_twelve_calls_and_keeps_count_after_cancel_and_resume(self):
+        class Model:
+            identity = 'test:optional-limit'
+            def generate(self, messages, tools, **kwargs):
+                reads = sum(m['role'] == 'tool' for m in messages)
+                if reads < 13:
+                    return ModelResponse({'role': 'assistant', 'tool_calls': [{
+                        'id': f'probe-{reads}', 'type': 'function',
+                        'function': {'name': 'probe', 'arguments': '{}'}}]}, 'tool_calls')
+                return ModelResponse({'role': 'assistant', 'content': '已完成'}, 'stop')
+        registry = ToolRegistry()
+        registry.register({'type': 'function', 'function': {'name': 'probe',
+                          'parameters': {'type': 'object'}}}, lambda *args: '{"value":1}')
+        events = []
+        with tempfile.TemporaryDirectory() as directory:
+            session = Session.create(Path(directory))
+            cancel = CancellationToken()
+            def stop_after_two_tools(name, **data):
+                if name == 'tool_result' and session.last_run['calls'] == 2:
+                    cancel.cancel()
+            result = execute_run('问题', model=Model(), registry=registry, session=session,
+                                 cancel=cancel, on_event=stop_after_two_tools)
+            self.assertEqual(result.status, 'interrupted')
+            self.assertEqual(session.last_run['calls'], 2)
+            restored = Session.load(session.path)
+            result = execute_run(None, model=Model(), registry=registry, session=restored,
+                                 resume=True, on_event=lambda name, **data: events.append((name, data)))
+            self.assertEqual((result.status, restored.last_run['calls']), ('completed', 14))
+            prompts = [r['system'] for r in restored.records if r['kind'] == 'model_started'][2:]
+            self.assertTrue(all('最多有' not in p and '最多还能' not in p for p in prompts))
+            self.assertTrue(all('remaining' not in data for name, data in events if name == 'model_call'))
+        fresh = Session()
+        self.assertEqual(execute_run('问题', model=Model(), registry=registry, session=fresh).status, 'completed')
+        self.assertEqual(fresh.last_run['calls'], 14)
+
     def test_final_notification_failure_preserves_committed_result_after_reload(self):
         from seekra.runtime import ContentOutputError
         from seekra.cli import continuation_hint
@@ -47,7 +101,7 @@ class RuntimeEdgeTests(unittest.TestCase):
                 self.assertEqual(restored.records[-1]['kind'], 'observation')
                 self.assertEqual(restored.records[-1]['event'], 'final_answer')
                 self.assertEqual(restored.records[-1]['exception_type'], type(error).__name__)
-                self.assertEqual(continuation_hint(restored, 12), '')
+                self.assertEqual(continuation_hint(restored), '')
                 with patch.object(Model, 'generate', side_effect=AssertionError('不能重复请求')):
                     with self.assertRaisesRegex(ValueError, '没有可继续'):
                         execute_run(None, model=Model(), registry=ToolRegistry(), session=restored, resume=True)
@@ -253,14 +307,15 @@ class RuntimeEdgeTests(unittest.TestCase):
         session.record('run_started',run_id='r',question='问题',system='规则',config={})
         session.record('model_started',run_id='r',round=1,system='规则')
         session.record('model_completed',run_id='r',message={'role':'assistant','content':'完整答案'})
-        self.assertNotIn('上限',continuation_hint(session,1))
-        self.assertIn('/continue',continuation_hint(session,1))
+        self.assertNotIn('上限',continuation_hint(session))
+        self.assertIn('/continue',continuation_hint(session))
         session=Session()
         session.record('run_started',run_id='r',question='问题',system='规则',config={})
         session.record('model_started',run_id='r',round=1,system='规则')
         session.record('run_ended',run_id='r',status='paused',error_code='iteration_limit',error='达到次数上限')
-        self.assertNotIn('上下文',continuation_hint(session,2))
-        self.assertIn('/continue',continuation_hint(session,2))
+        self.assertNotIn('上下文',continuation_hint(session))
+        self.assertIn('配置一致',continuation_hint(session))
+        self.assertNotIn('输入 /continue 继续',continuation_hint(session))
 
     def test_committed_model_text_is_not_saved_again_as_a_partial_answer(self):
         from seekra.display import session_transcript
@@ -328,7 +383,7 @@ class RuntimeEdgeTests(unittest.TestCase):
             registry=default_registry(client,'unused',s)
             result=json.loads(registry.execute({'id':'h','function':{'name':'read_history',
                 'arguments':'{"record_id":"1","limit":24000}'}},{},{}))
-        self.assertEqual(json.loads(result['content'])['result'],original)
+        self.assertIn(original, result['content'])
         self.assertEqual(messages[-1]['content'],original)
 
     def test_latest_history_read_reaches_next_model_context(self):

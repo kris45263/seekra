@@ -39,8 +39,7 @@ class CliSessionTests(unittest.TestCase):
                     with httpx.Client(transport=httpx.MockTransport(lambda r:reply('完整答案'))) as client, \
                          patch.object(AgentDisplay, target, replacement), \
                          redirect_stdout(out), redirect_stderr(err):
-                        actual = run_question('问题', client=client, config=config, session=session,
-                                              max_iterations=2, verbose=False)
+                        actual = run_question('问题', client=client, config=config, session=session, verbose=False)
                     if phase == 'final_answer':
                         self.assertEqual(actual, 0)
                         self.assertEqual(session.last_run['status'], 'completed')
@@ -77,7 +76,7 @@ class CliSessionTests(unittest.TestCase):
         with httpx.Client(transport=httpx.MockTransport(lambda r:reply('答案'))) as client, \
              patch.object(session,'record',side_effect=fail),redirect_stdout(io.StringIO()),redirect_stderr(err):
             status=run_question('问题',client=client,config={'DEEPSEEK_API_KEY':'fake','TAVILY_API_KEY':'fake','DEEPSEEK_MODEL':'test'},
-                                session=session,max_iterations=2,verbose=False)
+                                session=session,verbose=False)
         self.assertEqual(status,74)
         self.assertNotIn('执行记录保留',err.getvalue())
         self.assertNotIn('/continue',err.getvalue())

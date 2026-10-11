@@ -23,6 +23,7 @@ class PersistentRuntimeTests(unittest.TestCase):
         self.session = Session.create(Path(self.tmp.name))
 
     def ask(self, handler, question='问题', session=None, **kwargs):
+        kwargs.setdefault('thinking',False)  # 本组检验公开业务消息恢复；原生续接在 test_reasoning 中验证。
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             return run_agent(question, client=client, model='test', deepseek_api_key='fake-ds',
                              tavily_api_key='fake-tv', session=session or self.session, **kwargs)
@@ -72,7 +73,8 @@ class PersistentRuntimeTests(unittest.TestCase):
             self.assertNotEqual(request.url.host,'api.tavily.com')
             messages=json.loads(request.content)['messages']
             if '尾部' not in messages[-1]['content']:
-                return reply(calls=[call('read_page',{'url':'https://example.org','start':24000},'tail')])
+                page = json.loads(messages[-1]['content'])
+                return reply(calls=[call('read_document',{'document_id':page['document_id'],'start':24000},'tail')])
             return reply('尾部已读取')
         self.assertEqual(self.ask(resumed,None,restored,resume=True),'尾部已读取')
         self.assertIn('https://example.org',Session.load(restored.path).pages)

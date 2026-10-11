@@ -14,6 +14,34 @@ from test_agent import reply, call
 
 
 class DisplayEventTests(unittest.TestCase):
+    def test_outline_result_is_displayed_as_navigation_not_body(self):
+        from test_documents import add_page
+        for count in (2, 25):
+            with self.subTest(sections=count):
+                session = Session()
+                page = add_page(session, '\n\n'.join(f'## Section {i}\nText.' for i in range(count)))
+                result = session.documents.read_document(page['document_id'], view='outline')
+                err = io.StringIO()
+                with redirect_stderr(err):
+                    AgentDisplay().event('tool_result', tool_name='read_document', result=json.dumps(result))
+                self.assertIn('目录', err.getvalue())
+                self.assertNotIn('正文', err.getvalue())
+                self.assertIn('可继续翻页' if count > 20 else '已列完', err.getvalue())
+                err = io.StringIO()
+                with redirect_stderr(err):
+                    AgentDisplay().event('tool_call', tool_call=call('read_document', {
+                        'document_id': page['document_id'], 'view': 'outline'}))
+                self.assertIn('目录', err.getvalue())
+                self.assertNotIn('正文', err.getvalue())
+
+    def test_unlimited_call_display_does_not_print_a_remaining_count(self):
+        err = io.StringIO()
+        with redirect_stderr(err):
+            AgentDisplay(verbose=True).event('model_call', round=13, message_count=28)
+        self.assertIn('第 13 轮', err.getvalue())
+        self.assertNotIn('None', err.getvalue())
+        self.assertNotIn('剩余', err.getvalue())
+
     def test_tool_failure_shows_reason_without_promising_the_next_action(self):
         err=io.StringIO()
         with redirect_stderr(err):
@@ -57,7 +85,7 @@ class DisplayEventTests(unittest.TestCase):
         with redirect_stdout(out), redirect_stderr(err):
             view = AgentDisplay(verbose=True)
             view.event('start', question='问题')
-            view.event('model_call', round=1, message_count=2, remaining=11)
+            view.event('model_call', round=1, message_count=2)
             view.content('唯一正文')
             view.event('model_response', content='唯一正文', tool_calls=None)
             view.event('final_answer', round=1)

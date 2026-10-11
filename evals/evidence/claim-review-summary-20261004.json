@@ -1,0 +1,219 @@
+{
+  "date": "2026-10-04",
+  "fixture": "../claim-boundaries.json",
+  "fixture_sha256": "2b087bc98807aef0b8843dfcb712cd2d610476d878921274409254c5732b6a73",
+  "calibration_file": "claim-calibration-20261004.json",
+  "calibration_calls": 8,
+  "label_checks": 40,
+  "label_mismatches": 0,
+  "reasoning_basis_warning": "repeat2 a4 correctly rejected sufficiency but rationale said every30 days instead of after30 consecutive offline days.",
+  "review_runs": [
+    {
+      "file": "claim-review-bound_review-meridian-20261004.json",
+      "sha256": "5bce1139e4131c69eff6e21fde7d6add612d19d3c00e5c838ed22a2a91a79fdc",
+      "source": "semantic-boundary-hint-meridian-1-20261004.json",
+      "variant": "bound_review",
+      "status": "completed",
+      "model_calls": 5,
+      "tool_calls": 11,
+      "seconds": 34.81,
+      "error": null,
+      "new_task_usage": {
+        "input_tokens": 65619,
+        "output_tokens": 6686,
+        "missing_usage_calls": 0,
+        "input_reports": 5,
+        "output_reports": 5
+      },
+      "exact_repeated_actions": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            13522
+          ]
+        ]
+      },
+      "checkpoint_requests": 0,
+      "provider_rebuild_selections": 5,
+      "review_origin_used": true,
+      "old_progress_read": false
+    },
+    {
+      "file": "claim-review-bound_review-relay-20261004.json",
+      "sha256": "38688f5f4a238aeaa9e9a66833e10a57ba455c87f12190f72ea223a344345057",
+      "source": "semantic-boundary-hint-relay-1-20261004.json",
+      "variant": "bound_review",
+      "status": "failed",
+      "model_calls": 1,
+      "tool_calls": 0,
+      "seconds": 5.01,
+      "error": "连接模型服务时发生网络错误。",
+      "new_task_usage": {
+        "input_tokens": null,
+        "output_tokens": null,
+        "missing_usage_calls": 1,
+        "input_reports": 0,
+        "output_reports": 0
+      },
+      "exact_repeated_actions": [],
+      "confirmed_delivered": {},
+      "checkpoint_requests": 0,
+      "provider_rebuild_selections": 1,
+      "review_origin_used": false,
+      "old_progress_read": false
+    },
+    {
+      "file": "claim-review-bound_review-relay-retest-20261004.json",
+      "sha256": "de88559753ac66eb641f80c0792cdcb3883024f560a92857e5b52f27bb970325",
+      "source": "semantic-boundary-hint-relay-1-20261004.json",
+      "variant": "bound_review",
+      "status": "completed",
+      "model_calls": 4,
+      "tool_calls": 3,
+      "seconds": 33.7,
+      "error": null,
+      "new_task_usage": {
+        "input_tokens": 41232,
+        "output_tokens": 6993,
+        "missing_usage_calls": 0,
+        "input_reports": 4,
+        "output_reports": 4
+      },
+      "exact_repeated_actions": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            485
+          ]
+        ]
+      },
+      "checkpoint_requests": 0,
+      "provider_rebuild_selections": 4,
+      "review_origin_used": true,
+      "old_progress_read": true
+    },
+    {
+      "file": "claim-review-claim_comparison-meridian-20261004.json",
+      "sha256": "910bb3e94a85ed0d0374bd5442bdf2bee89c9913b66d2b7edd507b3dd81f5585",
+      "source": "semantic-boundary-hint-meridian-1-20261004.json",
+      "variant": "claim_comparison",
+      "status": "completed",
+      "model_calls": 6,
+      "tool_calls": 11,
+      "seconds": 34.59,
+      "error": null,
+      "new_task_usage": {
+        "input_tokens": 72910,
+        "output_tokens": 7068,
+        "missing_usage_calls": 0,
+        "input_reports": 6,
+        "output_reports": 6
+      },
+      "exact_repeated_actions": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            6059
+          ],
+          [
+            13252,
+            13522
+          ]
+        ]
+      },
+      "checkpoint_requests": 0,
+      "provider_rebuild_selections": 6,
+      "review_origin_used": true,
+      "old_progress_read": true
+    },
+    {
+      "file": "claim-review-claim_comparison-relay-20261004.json",
+      "sha256": "32b91d4dcf18ac936958a3467decd154f179c6fa1bc2281d1ee5644f509d8918",
+      "source": "semantic-boundary-hint-relay-1-20261004.json",
+      "variant": "claim_comparison",
+      "status": "failed",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "seconds": 37.61,
+      "error": "DeepSeek 输出未正常完成（可能已截断）。",
+      "new_task_usage": {
+        "input_tokens": 30123,
+        "output_tokens": 8473,
+        "missing_usage_calls": 0,
+        "input_reports": 3,
+        "output_reports": 3
+      },
+      "exact_repeated_actions": [],
+      "confirmed_delivered": {},
+      "checkpoint_requests": 0,
+      "provider_rebuild_selections": 3,
+      "review_origin_used": true,
+      "old_progress_read": true
+    },
+    {
+      "file": "claim-review-claim_comparison-relay-retest-20261004.json",
+      "sha256": "2f093c26d456e8892592b120aa4c96c53b9e525d76ec2a24051dc3ab0935c47a",
+      "source": "semantic-boundary-hint-relay-1-20261004.json",
+      "variant": "claim_comparison",
+      "status": "completed",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "seconds": 35.63,
+      "error": null,
+      "new_task_usage": {
+        "input_tokens": 30121,
+        "output_tokens": 7726,
+        "missing_usage_calls": 0,
+        "input_reports": 3,
+        "output_reports": 3
+      },
+      "exact_repeated_actions": [],
+      "confirmed_delivered": {
+        "S1-P1": [
+          [
+            0,
+            485
+          ]
+        ]
+      },
+      "checkpoint_requests": 0,
+      "provider_rebuild_selections": 3,
+      "review_origin_used": true,
+      "old_progress_read": true
+    }
+  ],
+  "review_model_calls": 22,
+  "total_model_calls": 30,
+  "code_sha256": {
+    "agent.py": "636b99f3446041721666a8ed5916f3a00151fccb9549efc5ad70d36d057673b0",
+    "checkpoint.py": "5bf84a9c51188a29997447acc6f530e62874af2f3ceb16c9504066a5ac6d7891",
+    "cli.py": "73974bfb81cdb72e51c0d25d79e5c637d3a33db9eb11bcb49ff3db46ccd3e36c",
+    "context.py": "f72d2fd5a0b5797d25292767ce5ed68b83193f978908f212568dee2064b7194f",
+    "deepseek.py": "9b6507007caa67bceed3a2fd0212655bfc4937c4719cb4daa585db4fc70ffca8",
+    "delivery.py": "34706b1d0e12286dfb5288cf5d5278a541e747dbf1e76b218004ec2ded6a7cd9",
+    "display.py": "6ca204d772167ce385ad8d007dfe01028d6c39fc471a2cbad3516fbe88ee8c97",
+    "documents.py": "dc61db45e55cace7e5837785e478459883e3bbe0eaf0a2ffd32990ef3a671dc7",
+    "input.py": "dcd65e48b7e29741f43134f03276791624c093de96288b7d9fa6bf81e0dc659f",
+    "models.py": "fe635011c9c4d4ffb19856516dcbe03c9436fd6fb7a36ab5feb1a34cf200bd61",
+    "operations.py": "4ea65da4de5bd0ea3e286e539c78302f44c80cb1ab7d48c2c3f34de7c4878fa1",
+    "progress.py": "115a1d55763062e974dc77d37c4efb98121a0d720e260d543b786d0a3a470de6",
+    "provider_context.py": "b64865c99247cf1c3caeb186709adc3155abfd1f30fd4199edf9244e315dd1a9",
+    "research.py": "1e9a27ee56089f0f32b0d2917a4957540ae185491edf7c5aa4ed2d5e2ae5f06f",
+    "retrieval.py": "0d708ada5aacc7d411ea7055310e7f93946a4b7afa013f21dfac3a80b2a756f9",
+    "runtime.py": "f9a805d119272588dd791a8405e5e2108c6d5718cd97e7373a2f361e4f8e4b98",
+    "session.py": "59c791cd8bcba8c077279ad541c09ead22c0cfd5864a945382c5b2072210ff9f",
+    "tools.py": "0892d78512a8c7df1f36b943d8a0706b28d1cb5f15f481b632b3d1f4df610491",
+    "windows_input.py": "6aeb1fdfde8364a02671161c51d01a08abc6d80007e120aa5f1f20c53383a43d",
+    "__init__.py": "126970362c16b725544b54b22ed871b8c5871dd2efdbac035573e7b800566196",
+    "__main__.py": "2ede3982713acef856dc08ee2966878a11263fa1f78ce9d2d9ff094e37a92467"
+  },
+  "limits": [
+    "The usage field in raw run files includes replayed prior-task usage; new_task_usage here counts only the new run id.",
+    "Exact repeats use tool name and canonical full JSON arguments; pagination, overlap, and paraphrased queries require separate interpretation.",
+    "No fixed stop rule or automatic reviewer installed; labels do not certify review rationale.",
+    "Recovery is expected after replaying histories without private continuation; these are explicit review tasks over prior answers."
+  ]
+}

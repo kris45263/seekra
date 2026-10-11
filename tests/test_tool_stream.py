@@ -23,13 +23,13 @@ class ToolStreamTests(unittest.TestCase):
                     self.assertEqual(shown, ['先整理。'])
                 return httpx.Response(200, headers={'content-type':'text/event-stream'}, stream=ByteStream([
                     event('先整理。'),
-                    event(tool_calls=[dict(tc(0, name='think_tool', arguments='{"reflection":"'), id='a', type='function'),
-                                      dict(tc(1, name='think_tool', arguments='{"reflection":"'), id='b', type='function')]),
+                    event(tool_calls=[dict(tc(0, name='tavily_search', arguments='{"query":"'), id='a', type='function'),
+                                      dict(tc(1, name='tavily_search', arguments='{"query":"'), id='b', type='function')]),
                     event(tool_calls=[tc(1, arguments='乙"}'), tc(0, arguments='甲"}')]),
                     event(finish='tool_calls'), checkpoint, DONE]))
             self.assertEqual(seen, ['a', 'b'])
             self.assertEqual([m['role'] for m in body['messages']], ['system','user','assistant','tool','tool'])
-            self.assertEqual(body['messages'][2]['tool_calls'][0]['function']['arguments'], '{"reflection":"甲"}')
+            self.assertEqual(body['messages'][2]['tool_calls'][0]['function']['arguments'], '{"query":"甲"}')
             return httpx.Response(200, headers={'content-type':'text/event-stream'}, content=event('回答', 'stop')+DONE)
         def execute(call, **kwargs):
             seen.append(call['id'])

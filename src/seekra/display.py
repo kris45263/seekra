@@ -52,6 +52,12 @@ def session_transcript(session, secrets=()) -> str:
             if message.get('content'):
                 label = 'Seekra'
                 parts.append(f'\n── {label} ──\n{message["content"]}\n')
+        elif kind == 'tool_completed' and record.get('final_output_field'):
+            payload=json.loads(record['result'])
+            if payload.get('status')=='success' and isinstance(payload.get(record['final_output_field']),str):
+                text=payload[record['final_output_field']]
+                committed[record['run_id']]=text
+                parts.append(f'\n── Seekra ──\n{text}\n')
         elif kind == 'run_resumed':
             parts.append('\n── 继续回答 ──\n')
         elif kind == 'run_ended' and record['status'] != 'completed':
@@ -135,11 +141,18 @@ class AgentDisplay:
             text = f"请求长度：{details['request_characters']} 字符（含消息和工具定义）。"
             if details['offloaded']:
                 text += ' 部分原文已转为历史记录，可按需读取。'
+            if details.get('compacted_messages'):
+                text += f" {details['compacted_messages']} 条较早决策消息已依据进展检查点移出。"
+            if details.get('checkpoint_requested'):
+                text += ' 已请求保存研究进展，以便继续整理上下文。'
         elif event == 'tool_call':
             name = details['tool_call']['function']['name']
             text = {'tavily_search': '正在搜索…', 'read_page': '正在读取网页…',
                     'think_tool': '正在整理信息…', 'list_history': '正在查找之前的内容…',
-                    'read_history': '正在回看之前的内容…'}.get(name, '正在执行工具…')
+                    'update_research': '正在保存研究进展…',
+                    'read_history': '正在回看之前的内容…', 'list_documents': '正在查找已保存资料…',
+                    'read_section': '正在读取相关小节…', 'read_document': '正在回查正文…',
+                    'find_in_documents': '正在定位相关正文…'}.get(name, '正在执行工具…')
             try:
                 args = json.loads(details['tool_call']['function']['arguments'])
                 if isinstance(args, dict):
@@ -153,6 +166,8 @@ class AgentDisplay:
                         if type(start) is int and start > 0:
                             text = '正在接着读取页面…'
                         text += '\n' + display_text(args.get('url', ''), self.secrets, single_line=True)
+                    elif name == 'read_document' and args.get('view') == 'outline':
+                        text = '正在读取资料目录…'
             except (ValueError, TypeError):
                 pass
         elif event == 'tool_result':
@@ -176,6 +191,20 @@ class AgentDisplay:
                     else:
                         text = '已读到页面内容。'
                     text += '\n' + display_text(result.get('title') or result.get('url', ''), self.secrets, single_line=True)
+                elif details['tool_name'] in {'read_section', 'read_document'}:
+                    if 'outline' in result:
+                        text = f"已列出 {len(result['outline'])} 项目录，" + (
+                            '可继续翻页。' if result.get('next_cursor') else '目录已列完。')
+                    else:
+                        text = ('已取得整段目标正文。' if result.get('complete') else
+                                '已取得部分正文，可继续读取。' if result.get('next_cursor') else '已到本次阅读目标末尾。')
+                    text += '\n' + display_text(result.get('section_title') or result.get('title', ''), self.secrets, single_line=True)
+                elif details['tool_name'] == 'find_in_documents':
+                    text = f"找到 {len(result.get('matches', []))} 处字面匹配。"
+                elif details['tool_name'] == 'list_documents':
+                    text = f"列出 {len(result.get('documents', []))} 份已保存资料。"
+                elif details['tool_name'] == 'update_research':
+                    text = f"已保存第 {result['revision']} 版研究进展。"
             except (ValueError, TypeError, AttributeError):
                 text = '工具结果无法解析。'
         elif event == 'end':
@@ -217,8 +246,7 @@ def _verbose_text(event: str, **details) -> str | None:
     """将生命周期事件格式化为详细诊断；不写终端，不重复正文。"""
     if event == "model_call":
         text = (f"\n── 第 {details['round']} 轮 ──\n"
-                f"模型调用：上下文 {details['message_count']} 条消息；"
-                f"本次之后剩余 {details['remaining']} 次")
+                f"模型调用：上下文 {details['message_count']} 条消息")
     elif event == "tool_call":
         function = details["tool_call"]["function"]
         text = f"\n工具 {details['number']}：{function['name']}\n"
@@ -245,6 +273,12 @@ def _verbose_text(event: str, **details) -> str | None:
                     text = f"工具执行失败：{data['error']}"
                 elif isinstance(data, dict) and data.get("content_kind") == "model_note":
                     text = "工具执行：研究笔记已记录（模型判断，不是外部证据）"
+                elif isinstance(data, dict) and data.get('content_kind') == 'research_state':
+                    state = data['state']
+                    opened = sum(not isinstance(gap,dict) or gap.get('status')=='open' for gap in state['gaps'])
+                    text = (f"进展已保存：版本 {data['revision']}，发现 {len(state['findings'])} 项，"
+                            f"未解决事项 {opened} 项，阅读目标 {len(state.get('read_targets',[]))} 项。"
+                            '程序校验通过，结论仍需正文支持。')
                 elif isinstance(data, dict) and data.get("operation") == "read_page":
                     text = (f"页面读取：{data['status']}\n请求地址：{data['requested_url']}\n"
                             f"服务报告地址：{data['url']}\n最终地址：未知\n"
@@ -256,10 +290,13 @@ def _verbose_text(event: str, **details) -> str | None:
                     for number, item in enumerate(data["results"], 1):
                         text += (f"\n\n[结果 {number}] {item['title']}\n"
                                  f"链接：{item['url']}\n内容：\n{item['content']}")
+                        if item.get('truncated'):
+                            text += f"\n片段仅展示部分，可按 {item['document_id']} 回查。"
                 else:
                     text = f"工具结果：\n{result}"
-                if isinstance(data, dict) and "processing" in data:
-                    info = data["processing"]
+                diagnostic = details.get('diagnostics') or data
+                if isinstance(diagnostic, dict) and "processing" in diagnostic:
+                    info = diagnostic["processing"]
                     labels = {"invalid_item": "条目不是对象", "invalid_url": "无效 URL",
                               "invalid_fields": "字段类型错误", "empty_content": "空正文",
                               "duplicate": "URL 与正文完全重复"}

@@ -22,12 +22,12 @@ class SessionTests(unittest.TestCase):
         from seekra.session import Session
         self.session = Session()
 
-    def ask(self, question, handler, limit=12, session=None):
+    def ask(self, question, handler, session=None):
         """运行真实闭环，仅替换 HTTP 请求传输。"""
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             return run_agent(question, client=client, model="test", deepseek_api_key="fake-ds",
-                             tavily_api_key="fake-tv", max_iterations=limit,
-                             session=self.session if session is None else session)
+                             tavily_api_key="fake-tv",
+                             session=self.session if session is None else session, thinking=False)
 
     def test_followup_keeps_tools_and_answer_without_duplicates(self):
         """第二次输入收到完整旧历史，并更新唯一系统提示词。"""
@@ -38,7 +38,7 @@ class SessionTests(unittest.TestCase):
             if len(json.loads(request.content)["messages"]) == 2:
                 return reply(calls=[call("tavily_search", {"query": "功能 A"})])
             return reply("第一项是功能 A")
-        self.ask("有哪些功能？", first, limit=2)
+        self.ask("有哪些功能？", first)
         saved = deepcopy(self.session.messages)
         self.assertEqual(len(saved), 5)
 
@@ -53,20 +53,20 @@ class SessionTests(unittest.TestCase):
             return reply("功能 A 的详情")
         with patch("seekra.agent.date") as today:
             today.today.return_value = date(2030, 1, 2)
-            self.assertEqual(self.ask("第一项呢？", second, limit=1), "功能 A 的详情")
+            self.assertEqual(self.ask("第一项呢？", second), "功能 A 的详情")
         self.assertEqual(len(self.session.messages), 7)
         self.assertEqual(self.session.messages[-1]["content"], "功能 A 的详情")
 
     def test_failed_or_interrupted_turn_leaves_previous_history_unchanged(self):
-        """工具后失败、上限、截断、空答案和中断均不保存临时消息。"""
+        """工具后失败、截断、空答案和中断均不保存临时消息。"""
         self.ask("已完成问题", lambda request: reply("已完成答案"))
         saved = deepcopy(self.session.messages)
-        for mode in ("http", "interrupt", "limit", "truncated", "empty"):
+        for mode in ("http", "interrupt", "truncated", "empty"):
             with self.subTest(mode=mode):
                 calls = []
                 def handler(request):
                     calls.append(request)
-                    if len(calls) == 1 or mode == "limit":
+                    if len(calls) == 1:
                         return reply(calls=[call("think_tool", {"reflection": "临时笔记"})])
                     if mode == "http":
                         return httpx.Response(500)
@@ -74,7 +74,7 @@ class SessionTests(unittest.TestCase):
                         raise KeyboardInterrupt()
                     return reply("半句话", finish="length") if mode == "truncated" else reply(None)
                 with self.assertRaises((httpx.HTTPStatusError, RuntimeError, KeyboardInterrupt)):
-                    self.ask("失败问题", handler, limit=2)
+                    self.ask("失败问题", handler)
                 self.assertEqual(self.session.messages, saved)
         self.ask("继续提问", lambda request: reply("恢复成功"))
         self.assertEqual(len(self.session.messages), 5)
