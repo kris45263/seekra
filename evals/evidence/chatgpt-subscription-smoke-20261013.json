@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-13",
+  "scope": "ChatGPT subscription authentication, minimal text response and one local-tool round trip; not an answer-quality comparison",
+  "auth_mode": "chatgpt_plan",
+  "configured_model": "gpt-6.1-sol",
+  "reasoning_effort": "medium",
+  "authentication": "Seekra browser OAuth completed, identity and plan permission verified; credentials kept in protected local storage and excluded from this evidence",
+  "observed_protocol_compatibility": [
+    {
+      "observation": "HTTP 200 response had no Content-Type header but contained valid Responses SSE events",
+      "initial_result": "Rejected before parsing",
+      "change": "Allow absent Content-Type, retain event and terminal validation; reject explicitly incompatible media types"
+    },
+    {
+      "observation": "response.output_item.done contained the complete message; response.completed had an empty output list",
+      "initial_result": "Rejected because terminal output did not repeat streamed text",
+      "change": "Collect completed output items by index and use them for compact terminal events, requiring contiguous indices, completed added items and matching streamed text"
+    }
+  ],
+  "text_smoke": {
+    "question": "Reply with exactly SEEKRA_OK. Do not use tools.",
+    "status": "completed",
+    "answer": "SEEKRA_OK",
+    "finish_reason": "stop",
+    "response_model": "gpt-6.1-sol",
+    "usage": {
+      "input_tokens": 18,
+      "output_tokens": 8,
+      "cache_read_tokens": 0,
+      "reasoning_tokens": 0
+    }
+  },
+  "seekra_local_tool_loop": {
+    "question": "请仅调用一次 list_documents，查看当前会话有没有已保存资料，然后用一句中文报告结果。不要搜索网络，也不要读取网页。",
+    "status": "completed",
+    "answer": "当前会话没有已保存的资料。",
+    "model_calls": 2,
+    "tools": ["list_documents"],
+    "response_models": ["gpt-6.1-sol", "gpt-6.1-sol"],
+    "real_tavily_calls": 0,
+    "usage": {
+      "input_tokens": 9626,
+      "output_tokens": 28,
+      "missing_calls": 0,
+      "reasoning_tokens": 0
+    }
+  },
+  "limits": [
+    "The usage entries describe the successful acceptance requests only; initial rejected requests and protocol-diagnostic requests also used the subscription and are not included in these totals",
+    "The local-tool run used the actual Seekra execution loop and default registry, with external retrieval hosts blocked by the probe transport",
+    "No comparison with DeepSeek, factual-research quality assessment, long-context pressure test or live token-refresh test was performed in this smoke test"
+  ]
+}

@@ -33,14 +33,15 @@ Ctrl+C：运行时停止，空闲时清空输入，输入为空时退出。空�
 Windows Terminal：Shift 拖选后 Ctrl+Shift+C 复制。"""
 
 
-def read_config(path: Path) -> dict[str, str]:
-    """仅从指定 .env 读取三个配置项，不回退到系统环境或展开环境变量。"""
+def read_config(path: Path, *, provider='deepseek') -> dict[str, str]:
+    """仅从指定 .env 读取所选服务需要的配置，不回退到系统环境。"""
     if not path.is_file():
         raise ValueError(f"没有找到配置文件：{path.resolve()}。请复制 .env.example 为 .env 并填写配置，"
                          "或使用 --env-file 指定文件。")
     values = dotenv_values(path, interpolate=False, encoding="utf-8-sig")
     config = {}
-    for name in ("DEEPSEEK_API_KEY", "DEEPSEEK_MODEL", "TAVILY_API_KEY"):
+    names = ('TAVILY_API_KEY',) if provider == 'chatgpt' else ('DEEPSEEK_API_KEY', 'DEEPSEEK_MODEL', 'TAVILY_API_KEY')
+    for name in names:
         value = (values.get(name) or "").strip()
         if not value or "${" in value:
             raise ValueError(f"配置项 {name} 未填写或格式无效。请检查 {path}。")
@@ -55,7 +56,7 @@ def run_question(question: str, *, client: httpx.Client, config: dict,
     if resume and (session.last_run is None or session.last_run['status'] == 'completed'):
         print('这段对话没有需要继续的回答，可以直接提问。', file=sys.stderr)
         return 1
-    view = AgentDisplay(verbose, secrets=(config['DEEPSEEK_API_KEY'], config['TAVILY_API_KEY']))
+    view = AgentDisplay(verbose, secrets=(config.get('DEEPSEEK_API_KEY', ''), config['TAVILY_API_KEY']))
     usage_before = session.usage_totals()
     started = False
     storage_or_output_failed = False
@@ -66,14 +67,22 @@ def run_question(question: str, *, client: httpx.Client, config: dict,
             print('\n── Seekra ──', file=sys.stderr, flush=True)
         view.event(name, **details)
     try:
-        answer = run_agent(
-            question, client=client, session=session, model=config["DEEPSEEK_MODEL"],
-            deepseek_api_key=config["DEEPSEEK_API_KEY"], tavily_api_key=config["TAVILY_API_KEY"],
-            structured_think=structured_think,
-            thinking=True,
-            on_content=view.content, on_event=event,
-            resume=resume, max_context_chars=max_context_chars, cancel=cancel,
-        )
+        if config.get('MODEL_PROVIDER') == 'chatgpt':
+            from .chatgpt import run_chatgpt
+            from .chatgpt_auth import ChatGPTAuth
+            answer = run_chatgpt(question, client=client, session=session,
+                tavily_api_key=config['TAVILY_API_KEY'], auth=ChatGPTAuth(profile=config.get('CHATGPT_PROFILE', 'default')),
+                on_content=view.content, on_event=event, resume=resume,
+                max_context_chars=max_context_chars, cancel=cancel)
+        else:
+            answer = run_agent(
+                question, client=client, session=session, model=config["DEEPSEEK_MODEL"],
+                deepseek_api_key=config["DEEPSEEK_API_KEY"], tavily_api_key=config["TAVILY_API_KEY"],
+                structured_think=structured_think,
+                thinking=True,
+                on_content=view.content, on_event=event,
+                resume=resume, max_context_chars=max_context_chars, cancel=cancel,
+            )
         # 崩溃前最终响应已落盘，恢复只补完成标记时没有新流片段。
         if resume and view.fragments == 0 and answer:
             view.content(answer)
@@ -155,6 +164,10 @@ def main() -> int:
     parser.add_argument("question", nargs="?", help="单次研究问题，请用引号包住")
     parser.add_argument("--repl", action="store_true", help="启动连续对话，默认自动保存会话")
     parser.add_argument("--verbose", action="store_true", help="显示工具参数、用量和计时等详细诊断")
+    parser.add_argument('--provider', choices=('deepseek', 'chatgpt'), default='deepseek',
+                        help='模型服务；chatgpt 使用已授权订阅的 gpt-6.1-sol / medium')
+    parser.add_argument('--chatgpt-login', action='store_true', help='在浏览器中授权 Seekra 使用 ChatGPT 套餐')
+    parser.add_argument('--chatgpt-profile', default='default', help='本地 ChatGPT 账号标签，默认 default')
     parser.add_argument("--session-dir", type=Path, default=Path('.seekra/sessions'), help="本地会话目录，默认启动目录下 .seekra/sessions")
     parser.add_argument("--session", metavar="ID", help="打开已有会话后提问或进入 REPL")
     parser.add_argument("--resume", nargs='?', const='', metavar="ID", help="打开最近有内容的会话进入 REPL，也可指定 ID")
@@ -163,6 +176,24 @@ def main() -> int:
     parser.add_argument("--no-session", action="store_true", help="不保存到磁盘，仅使用内存会话")
     parser.add_argument("--max-context-chars", type=int, default=120000, help="请求消息和工具定义的字符上限（非 token），默认 120000")
     args = parser.parse_args()
+    if args.chatgpt_login:
+        if args.question or args.repl or args.session or args.resume is not None or args.continue_session or args.sessions:
+            parser.error('--chatgpt-login 请单独使用，不与研究或会话操作混用')
+        from .chatgpt_auth import ChatGPTAuth
+        try:
+            auth = ChatGPTAuth(profile=args.chatgpt_profile)
+            print('Continue with ChatGPT：将打开浏览器，请确认 Seekra 的套餐使用权限。', file=sys.stderr)
+            with httpx.Client() as login_client:
+                auth.login(login_client)
+            print(f'ChatGPT 授权已验证，账号标签：{auth.profile}。凭据保存在 {auth.path}。', file=sys.stderr)
+            print('应用用量与撤销授权：https://chatgpt.com/settings/usage', file=sys.stderr)
+            return 0
+        except (ValueError, RuntimeError, OSError, httpx.HTTPError) as exc:
+            print(f'ChatGPT 登录未完成：{exc if isinstance(exc, (ValueError, RuntimeError)) else type(exc).__name__}', file=sys.stderr)
+            return 1
+        except KeyboardInterrupt:
+            print('登录已取消。', file=sys.stderr)
+            return 130
     if args.resume is not None:
         if args.question is not None or args.sessions or args.continue_session or args.session or args.no_session:
             parser.error("--resume 不能与问题、--sessions、--continue、--session 或 --no-session 一起使用")
@@ -210,7 +241,15 @@ def main() -> int:
         list_sessions()
         return 0
     try:
-        config = read_config(args.env_file)
+        config = read_config(args.env_file, provider=args.provider) if args.provider == 'chatgpt' else read_config(args.env_file)
+        if args.provider == 'chatgpt':
+            from .chatgpt_auth import ChatGPTAuth
+            auth = ChatGPTAuth(profile=args.chatgpt_profile)
+            saved = auth.read()
+            if not saved.get('access_token'):
+                raise ValueError('尚未登录 ChatGPT，请先运行 seekra --chatgpt-login。')
+            config.update(MODEL_PROVIDER='chatgpt', CHATGPT_PROFILE=args.chatgpt_profile)
+            print(f'模型：ChatGPT / gpt-6.1-sol · medium · 账号标签：{auth.profile}', file=sys.stderr)
     except (ValueError, OSError) as exc:
         print(f"配置错误：{exc}", file=sys.stderr)
         return 1

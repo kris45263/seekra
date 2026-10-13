@@ -1,0 +1,99 @@
+{
+  "date": "2026-10-13",
+  "scope": "three simple connectivity checks before local commit; not a model-quality comparison",
+  "model": "gpt-6.1-sol",
+  "reasoning_effort": "medium",
+  "auth_mode": "chatgpt_plan",
+  "real_tavily_calls": 0,
+  "checks": [
+    {
+      "check": "text_ascii",
+      "question": "Reply with exactly SEEKRA_PING_A. Do not use tools.",
+      "status": "completed",
+      "answer": "SEEKRA_PING_A",
+      "expected_output_matches": true,
+      "provider": {
+        "configured_model": "gpt-6.1-sol",
+        "response_model": "gpt-6.1-sol",
+        "reasoning_effort": "medium",
+        "auth_mode": "chatgpt_plan"
+      },
+      "usage": {
+        "input_tokens": 20,
+        "output_tokens": 10,
+        "cache_read_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "reasoning_tokens": 0
+      },
+      "seconds": 3.927
+    },
+    {
+      "check": "text_chinese",
+      "question": "请只回复四个汉字：连接正常。不要加标点，不要调用工具。",
+      "status": "completed",
+      "answer": "连接正常",
+      "expected_output_matches": true,
+      "provider": {
+        "configured_model": "gpt-6.1-sol",
+        "response_model": "gpt-6.1-sol",
+        "reasoning_effort": "medium",
+        "auth_mode": "chatgpt_plan"
+      },
+      "usage": {
+        "input_tokens": 26,
+        "output_tokens": 22,
+        "cache_read_tokens": 0,
+        "cache_hit_rate": 0.0,
+        "reasoning_tokens": 14
+      },
+      "seconds": 4.12
+    },
+    {
+      "check": "seekra_local_tool_loop",
+      "question": "请只调用一次 list_documents 查看当前会话已有资料，再用一句中文报告是否有资料。禁止搜索网络或读取网页。",
+      "status": "failed",
+      "error_type": "ConnectError",
+      "tools": [],
+      "seconds": 1.724
+    },
+    {
+      "check": "seekra_local_tool_loop",
+      "attempt": 2,
+      "question": "请只调用一次 list_documents 查看当前会话已有资料，再用一句中文报告是否有资料。禁止搜索网络或读取网页。",
+      "status": "completed",
+      "answer": "当前会话没有已有资料。",
+      "tools": [
+        "list_documents"
+      ],
+      "expected_tool_matches": true,
+      "model_calls": 2,
+      "usage": {
+        "input_tokens": 9622,
+        "output_tokens": 26,
+        "input_reports": 2,
+        "output_reports": 2,
+        "missing_calls": 0,
+        "calls": 2,
+        "reasoning_tokens": 0,
+        "reasoning_reports": 2
+      },
+      "provider": [
+        {
+          "configured_model": "gpt-6.1-sol",
+          "response_model": "gpt-6.1-sol",
+          "reasoning_effort": "medium",
+          "auth_mode": "chatgpt_plan"
+        },
+        {
+          "configured_model": "gpt-6.1-sol",
+          "response_model": "gpt-6.1-sol",
+          "reasoning_effort": "medium",
+          "auth_mode": "chatgpt_plan"
+        }
+      ],
+      "seconds": 12.399
+    }
+  ],
+  "acceptance_passed_after_retry": true,
+  "all_attempts_passed": false
+}

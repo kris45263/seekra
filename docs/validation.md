@@ -2,6 +2,10 @@
 
 工程正确性与研究答案质量分别判定。运行方式见 [开发指南](development.md)，证据入口见 [实验索引](../evals/README.md)。
 
+软预算提前外置的[固定资料验收](../evals/evidence/soft-budget-local-read-20261011.json)使用预置历史和真实 DeepSeek reasoning 请求：模型保持普通工具权限，回查外置的目标原文，保存进展并在三次请求后回答，没有真实 Tavily 调用。它验证这条路径可被模型使用，不证明自主规划或答案质量改善；输出仍对 28 天联网方案的时间条件作出过强判断。
+
+ChatGPT 订阅入口的离线测试覆盖 OAuth 身份/权限校验、本机回调、Windows 凭据加密、刷新互斥、Responses 正文与工具往返、失败流，以及取消重载时不重复工具和不持久化推理续接数据。[真实订阅验收](../evals/evidence/chatgpt-subscription-smoke-20261013.json)已完成浏览器授权、`gpt-6.1-sol / medium` 最小文本请求及一次 `list_documents` 本地工具闭环；[补充连通检测](../evals/evidence/chatgpt-connectivity-recheck-20261013.json)覆盖中英文短答与本地工具往返，其中一次建连失败后重试通过，失败记录保留。实测响应可缺少 Content-Type，且完整输出项可能只在 `response.output_item.done` 返回；适配器仍须在完整输出项校验和最终 `response.completed` 通过后才提交结果。这些检查不证明服务稳定性或研究质量优于现有模型，也不覆盖长上下文或真实令牌刷新。
+
 ## 范围与判定原则
 
 分别评估可确定的 harness 行为和非确定的模型回答质量。工程测试通过、API 正常退出或工具被调用，都不直接等于研究答案正确。

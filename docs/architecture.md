@@ -8,7 +8,7 @@
 
 Seekra 是一个终端搜索研究助手。用户提出问题后，模型根据已有信息选择搜索、读取网页、保存研究进展或直接回答。工具结果会交回模型，供它决定下一步。这个过程持续到模型给出最终答案，或任务因取消、错误、预算不足而停止。
 
-研究过程由一个 Agent 执行循环管理。CLI 接收用户操作、准备配置和展示结果；执行循环调用模型和工具、检查预算并保存执行进度。当前模型接入 DeepSeek，搜索和网页提取使用 Tavily。
+研究过程由一个 Agent 执行循环管理。CLI 接收用户操作、准备配置和展示结果；执行循环调用模型和工具、检查预算并保存执行进度。默认模型接入 DeepSeek；可选 ChatGPT 订阅入口复用同一执行循环，搜索和网页提取仍使用 Tavily。
 
 ```text
 用户输入
@@ -37,6 +37,7 @@ execute_run：管理一次研究任务
 |`checkpoint.py`|接近预算时安排进展保存阶段，选择可用工具，并检查实际调用的阶段边界|
 |`runtime.py`|定义 Model、ModelResponse、RunResult、CancellationToken 等公共接口|
 |`models.py`、`deepseek.py`|发送 DeepSeek 请求，组装和校验流式响应，整理服务返回的用量统计|
+|`chatgpt.py`、`chatgpt_auth.py`|适配 ChatGPT 订阅的 Responses 流与工具协议，管理 Seekra 独立 OAuth 注册、受保护凭据和刷新|
 |`provider_context.py`|将供应商续接字段纳入实际请求预算，缺失或无法容纳时重建业务上下文|
 |`tools.py`|定义和注册工具，解析模型给出的参数，把结果转换为模型可接收的 JSON 文本|
 |`retrieval.py`、`operations.py`|调用 Tavily，整理搜索结果和页面快照，统一操作状态与错误字段|
@@ -93,6 +94,14 @@ Model 的 `generate` 方法接收消息、工具定义、正文回调、用量�
 ToolRegistry 保存工具定义及其执行函数。执行核心把工具调用交给注册表，具体参数规则和业务处理由工具负责。默认集合包含 `tavily_search`、`read_page`、`list_documents`、`read_document`、`read_section`、`find_in_documents`、`update_research`、`list_history` 和 `read_history`。
 
 `run_agent` 是面向现有 DeepSeek 配置的调用入口：它创建模型适配器和默认工具集合，调用 `execute_run`，成功时返回答案字符串，失败时重新抛出结果中的异常。需要自行提供模型或工具集合的调用者可以直接使用 `execute_run`。
+
+### ChatGPT 订阅模型接入
+
+`--provider chatgpt` 选择 `ChatGPTModel`，固定 `gpt-6.1-sol` 和 `medium`；默认 DeepSeek 入口不变。`chatgpt_auth` 通过 loopback 回调、PKCE、state 和签名 ID token 验证授权，必须取得 `chatgpt.tokens.use.direct` 权限才允许调用。每个账号标签分开保存 client ID 与已验证身份；host ID 跨登录复用，刷新在文件锁内串行执行，成功后原子替换令牌。Windows 文件内容由 DPAPI 加密，Unix 文件权限为 0600。OAuth URL、授权码、令牌与 ID token 不写入研究日志。
+
+适配器把系统提示转为 `instructions`，把工具定义放入 `seekra` namespace，并将工具结果转换为 `function_call_output`。普通正文增量进入现有展示回调；只有 `response.completed` 且完整结果通过校验，才发布 assistant 消息和待执行调用。额度失败、`response.incomplete` 和缺少完成事件的流都会停止；失败响应已报告的用量仍保留。
+
+无服务端会话存储：每次使用 `store=false`、`stream=true`，显式发送当前所需历史，不使用 `previous_response_id`。不透明的 reasoning 续接项仅在进程内保存，并计入预算；重载后缺失则复用现有业务上下文重建流程。`request_content` 提供供应商实际的指令、输入与工具结构，供发送前验证字符上限和生成摘要哈希，避免只按中间消息格式计数。模型、effort 和协议版本纳入恢复身份；订阅通道不发送不支持的输出 token 上限或采样参数。
 
 ### 显式终稿交付
 
@@ -230,7 +239,9 @@ Session 使用进程内锁阻止同一对象被并发操作；持久会话另用
 
 没有检查点且请求未超限时，模型收到完整消息。正文较长时，程序可以把较旧的工具正文换成带来源和快照引用的预览，或按用户问题边界移出旧任务；刚取得的资料至少进入下一次决策，最新有效研究进展保留。
 
-当前以硬上限的 80% 作为提前整理阈值。当请求接近该值时，执行循环先尝试使用已有有效进展形成检查点；若仍需整理且不是刚刚保存进展，就进入临时整理阶段。该阶段只提供 `update_research` 与已有正文引用的 `read_document` 回查：`reference` 核对引用自身，`text` 展开附近正文以修正引用。普通搜索、联网提取、小节和页面续读在成功保存并整理后恢复；模型也可以直接给出有依据的答案或说明缺口。
+当前以硬上限的 80% 作为提前整理阈值。当普通研究请求达到该值时，执行循环先尝试使用已有有效进展形成检查点，并按软目标外置较旧工具正文。提前外置保留最新有效进展、工具失败详情和历史回读结果，不为了达到软目标裁短最新结果组或移除旧用户任务；只有硬上限仍被超过时才进入后续预算分配。空间已经足够时继续提供普通工具，避免仅因跨过软阈值就要求模型保存进展。
+
+整理后仍达到阈值且不是刚刚保存进展时，进入临时整理阶段。该阶段只提供 `update_research` 与已有正文引用的 `read_document` 回查：`reference` 核对引用自身，`text` 展开附近正文以修正引用。普通搜索、联网提取、小节和页面续读在成功保存并整理后恢复；模型也可以直接给出有依据的答案或说明缺口。
 
 阶段既影响模型可见的工具定义，也在执行端检查。暂时停用的调用返回 `progress_required`，不取得新资料；局部回查必须从已交付正文引用开始。阶段在 `model_started` 落盘时发布，成功更新进展后，下一次请求推进检查点并恢复普通工具。同一响应中与更新并列的调用仍遵守该响应所属阶段，中断恢复后也遵守相同边界。更新、回查和失败尝试都使用正常调用、用量与取消流程。
 

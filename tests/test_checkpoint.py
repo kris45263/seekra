@@ -20,6 +20,87 @@ REFERENCE = f'S1-P1@0-{len(PAGE.strip())}'
 
 
 class CheckpointTests(unittest.TestCase):
+    def test_soft_budget_offloads_old_sources_before_restricting_tools_and_survives_reload(self):
+        from copy import deepcopy
+        from seekra.checkpoint import prepare_context
+        from seekra.context import build_context
+        from seekra.tools import default_registry
+        with tempfile.TemporaryDirectory() as directory:
+            session = Session.create(Path(directory))
+            for i in range(9):
+                add_page(session, '# Guide\n\n' + f'condition {i}. ' * 600,
+                         url=f'https://example.org/{i}')
+            deliver(session)
+            latest = add_page(session, '# Latest\n\n' + 'latest condition. ' * 600,
+                              url='https://example.org/latest')
+            definitions = default_registry(None, 'fake', session).definitions
+            messages = session.last_run['messages']
+            _, full = build_context(messages, definitions, session, 200000)
+            budget = full['request_characters'] * 10 // 9
+            records, original = deepcopy(session.records), deepcopy(messages)
+            selected, tools, info, _ = prepare_context(messages, definitions, session, budget)
+            self.assertIsNone(info['progress_stage'], '仍可外置旧正文时，不应先关闭普通工具')
+            self.assertEqual(tools, definitions)
+            self.assertLess(info['request_characters'], info['checkpoint_threshold'])
+            self.assertEqual(info['request_characters'], len(json.dumps({'messages': selected, 'tools': tools}, ensure_ascii=False)))
+            self.assertEqual(json.loads(selected[-1]['content']), latest, '最新结果不为软阈值裁短')
+            offloaded = [json.loads(m['content']) for m in selected if m['role'] == 'tool'
+                         and json.loads(m['content']).get('offloaded')]
+            self.assertTrue(offloaded)
+            reference = offloaded[0]['delivered_reads'][0]['evidence_ref']
+            source = session.documents.read_document(reference, view='reference')
+            self.assertIn('condition 0', source['content'])
+            self.assertEqual(messages, original)
+            self.assertEqual(session.records, records)
+            restored = Session.load(session.path)
+            again, _, restored_info, _ = prepare_context(restored.last_run['messages'], definitions, restored, budget)
+            self.assertEqual(again, selected)
+            self.assertEqual(restored_info, info)
+
+    def test_soft_budget_does_not_hide_tool_failure_details(self):
+        from seekra.checkpoint import prepare_context
+        from seekra.context import build_context
+        from seekra.tools import default_registry
+        from test_documents import complete_tool
+        session = Session()
+        failure = {'operation': 'read_page', 'status': 'failed', 'error_code': 'timeout',
+                   'error': 'failure detail. ' * 150 + 'FAILURE_TAIL'}
+        complete_tool(session, 'read_page', failure)
+        for i in range(9):
+            add_page(session, '# Guide\n\n' + 'body. ' * 1000, url=f'https://example.org/{i}')
+        definitions = default_registry(None, 'fake', session).definitions
+        _, full = build_context(session.last_run['messages'], definitions, session, 200000)
+        selected, tools, info, _ = prepare_context(session.last_run['messages'], definitions, session,
+                                                  full['request_characters'] * 10 // 9)
+        self.assertIsNone(info['progress_stage'])
+        self.assertEqual(json.loads(selected[3]['content']), failure)
+        self.assertIn('FAILURE_TAIL', selected[3]['content'])
+
+    def test_soft_target_keeps_latest_body_even_when_it_cannot_reach_target(self):
+        from seekra.checkpoint import prepare_context
+        from seekra.context import build_context
+        from seekra.tools import default_registry
+        session = Session()
+        latest = add_page(session, '# Guide\n\n' + 'body. ' * 1000)
+        definitions = default_registry(None, 'fake', session).definitions
+        _, full = build_context(session.last_run['messages'], definitions, session, 200000)
+        selected, tools, info, _ = prepare_context(session.last_run['messages'], definitions, session,
+                                                  full['request_characters'] * 10 // 9)
+        self.assertIsNotNone(info['progress_stage'], '无法从旧正文腾空间时仍保留整理阶段')
+        body = json.loads(selected[-1]['content'])
+        for field in ('content', 'start', 'end', 'evidence_ref'):
+            self.assertEqual(body[field], latest[field])
+        self.assertNotIn('batch_delivery', info)
+
+    def test_soft_target_without_offloadable_content_does_not_expand_or_fail_request(self):
+        from seekra.context import build_context
+        messages=[{'role':'system','content':'x'*2100},{'role':'user','content':'question'}]
+        size=len(json.dumps({'messages':messages,'tools':[]},ensure_ascii=False))
+        selected,info=build_context(messages,[],Session(),size+10,offload_target=size*4//5)
+        self.assertEqual(selected,messages)
+        self.assertFalse(info['offloaded'])
+        self.assertEqual(info['request_characters'],size)
+
     def test_history_review_actions_follow_stage_and_restore_without_mutation(self):
         from copy import deepcopy
         from seekra.checkpoint import present_actions

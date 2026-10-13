@@ -168,10 +168,16 @@ def prepare_model_context(messages, definitions, session, max_chars, model):
         info['replacements'] = {str(i): {k: deepcopy(v) for k, v in message.items() if k != 'reasoning_content'}
                                 for i, message in zip(info['message_indices'], result[0])
                                 if {k: v for k, v in message.items() if k != 'reasoning_content'} != originals[i]}
+        content_builder = getattr(model, 'request_content', None)
+        wire_content = (content_builder(result[0], result[1]) if content_builder is not None
+                        else {'messages': result[0], 'tools': result[1]})
+        encoded = json.dumps(wire_content, ensure_ascii=False)
+        if len(encoded) > max_chars:
+            raise ContextLimit('供应商实际消息与工具定义超过上下文字符上限')
         info.update(provider_window=deepcopy(current), recovery_sources=recovery_sources,
+                    request_characters=len(encoded),
                     reasoning_characters=sum(len(m.get('reasoning_content', '')) for m in result[0]),
-                    request_sha256=hashlib.sha256(json.dumps({'messages': result[0], 'tools': result[1]},
-                                                            ensure_ascii=False).encode()).hexdigest())
+                    request_sha256=hashlib.sha256(encoded.encode()).hexdigest())
         return result
 
     try:

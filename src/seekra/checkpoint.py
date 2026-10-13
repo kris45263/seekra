@@ -103,7 +103,7 @@ def prepare_context(messages, definitions, session, max_chars, *, message_start=
     just_saved = (latest is not None and messages[-1].get('tool_call_id') == latest['call_id']
                   and messages[-1].get('content') == latest['result'])
 
-    def select(current_stage, compact=False):
+    def select(current_stage, compact=False, offload_target=None):
         staged = list(messages)
         final_tools=run['config'].get('final_outputs',{})
         staged[0] = {**messages[0], 'content': messages[0]['content'] + (
@@ -116,6 +116,7 @@ def prepare_context(messages, definitions, session, max_chars, *, message_start=
                             '\n\n[harness 提供的恢复资料]\n' + json.dumps(present_actions(snapshot,current_stage),ensure_ascii=False)}
         tools = _tools(definitions,run['config'].get('final_outputs',{})) if current_stage is not None else definitions
         selected, info = build_context(staged, tools, session, max_chars, compact=compact,
+                                      offload_target=offload_target,
                                       message_start=message_start, extra_sources=extra_sources,
                                       payload_transform=lambda payload:present_actions(payload,current_stage),
                                       read_notice=('当前可保存进展或局部核对已有正文引用；'
@@ -134,7 +135,7 @@ def prepare_context(messages, definitions, session, max_chars, *, message_start=
             stage = {'base_revision': revision}
             result = select(stage, compact=True)
     if result[2]['request_characters'] >= threshold:
-        result = select(stage, compact=True)
+        result = select(stage, compact=True, offload_target=threshold-1 if stage is None else None)
         if stage is None and result[2]['request_characters'] >= threshold and not just_saved and can_save:
             stage = {'base_revision': revision}
             result = select(stage, compact=True)
