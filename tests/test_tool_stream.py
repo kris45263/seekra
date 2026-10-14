@@ -42,7 +42,7 @@ class ToolStreamTests(unittest.TestCase):
     def test_missing_done_never_executes_or_commits(self):
         session = Session(messages=[{'role':'system','content':'old'}, {'role':'user','content':'旧问'}, {'role':'assistant','content':'旧答'}])
         before = deepcopy(session)
-        stream = ByteStream([event(tool_calls=[{'index':0,'id':'a','type':'function','function':{'name':'think_tool','arguments':'{}'}}]), event(finish='tool_calls')])
+        stream = ByteStream([event(tool_calls=[{'index':0,'id':'a','type':'function','function':{'name':'tavily_search','arguments':'{"query":"查询"}'}}]), event(finish='tool_calls')])
         with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, headers={'content-type':'text/event-stream'}, stream=stream))) as client, patch('seekra.tools.execute_tool') as execute:
             with self.assertRaises(RuntimeError):
                 run_agent('新问', client=client, model='test', deepseek_api_key='x', tavily_api_key='y', session=session)

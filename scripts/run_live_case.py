@@ -53,7 +53,7 @@ def main() -> int:
         with httpx.Client(event_hooks={"request": [capture]}) as client:
             answer = run_agent(case["question"], client=client, model=config["DEEPSEEK_MODEL"],
                                deepseek_api_key=config["DEEPSEEK_API_KEY"], tavily_api_key=config["TAVILY_API_KEY"],
-                               session=session, structured_think=case["structured_think"],
+                               session=session,
                                on_content=view.content, on_event=view.event)
     except (Exception, KeyboardInterrupt) as exc:
         error = type(exc).__name__

@@ -67,7 +67,7 @@ class SessionTests(unittest.TestCase):
                 def handler(request):
                     calls.append(request)
                     if len(calls) == 1:
-                        return reply(calls=[call("think_tool", {"reflection": "临时笔记"})])
+                        return reply(calls=[call("list_documents", {})])
                     if mode == "http":
                         return httpx.Response(500)
                     if mode == "interrupt":

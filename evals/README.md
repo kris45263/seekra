@@ -1,50 +1,60 @@
-# 真实案例与实验证据
+# 评估案例与精选证据
 
-这里保存用于解释能力、反例或设计选择的案例和证据，不是每次开发运行的日志集合。当前实现见 [架构](../docs/architecture.md)，判定方法见 [验证指南](../docs/validation.md)，结论见 [研究发现](../docs/research-findings.md)。
+这里分别维护可重复检查的能力、运行所需固定资料，以及需要复查具体现场的少量证据。当前实现见 [架构](../docs/architecture.md)，判断方法见 [验证指南](../docs/validation.md)，问题结论见 [研究发现](../docs/research-findings.md)。
 
-## 用例与运行
+## 选择运行入口
 
-[cases.json](cases.json) 保存直接回答、指定页读取、失败反馈、复杂版本问题和两种笔记用例的精确问题。运行真实服务需要有效的项目配置，会产生调用费用。
+|入口|用途|输出的解释范围|
+|---|---|---|
+|[cases.json](cases.json) 与 [run_live_case.py](../scripts/run_live_case.py)|直接回答、指定页阅读、失败反馈、版本与证据边界四项基础检查|答案和操作摘要；不能重建全部实际请求|
+|[check_documents.py](../scripts/check_documents.py)|正文定位、条件保留、版本比较、引用纠正十项能力检查|实际公开请求、执行记录、取得与交付范围；固定资料与真实检索分别标记|
+|[claim-boundaries.json](claim-boundaries.json)|20 个固定语义正反例，供人工核对或校准评估者|单项判断能力；不能替代完整回答核对或自主研究|
 
 ```powershell
 uv run python -X utf8 scripts/run_live_case.py --list
+uv run python -X utf8 scripts/check_documents.py --list
 uv run python -X utf8 scripts/run_live_case.py --case page --output evals/runs/page.json
+uv run python -X utf8 scripts/check_documents.py --case long-section --output evals/runs/long-section.json
 ```
 
-`runs/` 是忽略跟踪的运行产物目录。复现指定实验：
+`--list` 不调用服务。其他运行读取项目 `.env`，调用已配置的 DeepSeek；真实检索案例还调用 Tavily，会产生费用。运行器使用当前代码和默认参数，不声称复现某个历史模型的完整行为。输出文件必须不存在。
 
-```powershell
-uv run python -X utf8 scripts/probe_capabilities_20260910.py --case think-pair --output evals/runs/think-pair.json
-uv run python -X utf8 scripts/probe_capabilities_20260910.py --case boundary --output evals/runs/boundary.json
-uv run python -X utf8 scripts/probe_extract_20260910.py
-```
+`runs/` 是忽略跟踪的过程产物目录。每次运行结束并完成判断后，删除没有后续用途的产物；仅需要复查具体现场时才精选保留。输出未评分，`completed` 只表示执行结束。
 
-Extract 脚本写入 `evals/runs/extract-match-20260910.json`。各脚本拒绝覆盖已有输出，再次运行前选择新路径或移走已有运行产物。Probe 名称中的日期标识实验方案，不会固定实时外部数据。
+## 能力与判据
 
-## 证据索引
-
-|研究问题|记录|用途与局限|
+|案例|需要检查的能力|重要判据|
 |---|---|---|
-|版本指令、证据供应、工具可用性|[2026-09-07 对照](evidence/2026-09-07-experiments.json)|早期 snippet-only 基线；固定历史与单项变化，不是当前全流程回归|
-|读取、失败与笔记协议|[能力基线](evidence/2026-09-08-live.json)|包含修复前 failure 与修复后 failure-retest；复杂题只部分通过|
-|指定页读取|[页面复测](evidence/page-retest-2026-09-08.json)、[流式读取](evidence/page-streaming-20260908.json)、[完整请求与范围](evidence/page-20260910.json)|能取得及续读目标快照；不认证网页完整或所有答案细节|
-|404 错误反馈|[失败复测](evidence/failure-retest-2026-09-08.json)|错误事实可见；回答附加推断不一定有证据|
-|手工页面检查|[原始页面验收](evidence/manual-page-20260908.json)|保留当时记录，不重新解释为当前版本通过|
-|搜索参数与来源|[结构取样](evidence/tavily-structure-sample-20260908.json)、[参数机制](evidence/tavily-mechanism-probe-20260908.json)|单题小样本；数量、域名和片段的区别|
-|模型参数使用|[数量控制](evidence/search-controls-live-20260908.json)、[明确域名](evidence/search-domain-live-20260908.json)|证明能力被使用，不证明参数选择最优|
-|噪声与内容消费|[抓取计数](evidence/tavily-noise-probe-20260908.json)、[原文/清理对照](evidence/noise-answer-pair-20260908.json)|没有观察到删除界面行的准确率收益；每组一次|
-|结构化笔记引用|[固定会话对照](evidence/think-pair-20260910.json)|首请求仅 schema 不同；四组都续读，一组引用两次失败|
-|引用定位与自主使用|[实验分析](evidence/think-analysis-20260912.md)、[原始请求](evidence/references-original-20260912.json)、[正文编号](evidence/references-body-id-20260912.json)、[自主选择](evidence/note-choice-20260912.json)|编号副本可能帮助正确引用；单页续读六次均未主动调用 think，不证明复杂任务无收益|
-|复杂题的具体归因|[实际完整轨迹](evidence/boundary-20260910.json)|来源、范围、答案可逐项核对，仍有范围扩大|
-|缺失路径的首页回退|[HTTP/Extract 对照](evidence/extract-match-20260910.json)|本机直接 HTTP 也返回首页；未确定服务端内部原因|
-|CLI 与取消|[独立进程](evidence/cli-entry-20260910.json)、[PTY 观察](evidence/terminal-cancel-20260910.md)|真实连续问答及一次生成中取消；工具阻塞阶段未覆盖|
+|`simple`|无需研究时直接回答|不强制调用搜索或阅读工具|
+|`page`、`live-page`|给定 URL 后定位指定内容|依据实际版本与小节，区分未读、未记载与不存在|
+|`failure-retest`|获取失败后的反馈|报告实际失败，不编造正文或擅自换来源；站点返回回退页面时单独判断目标匹配|
+|`boundary`、`migration`|自主发现并组合版本化来源|分别核对捆绑、默认、必需，或启动方式、可变全局量和常量；来源支持对应版本|
+|`long-section`|跨窗口阅读并保留末尾条件|固定虚构资料中的系统、许可、准备、期限和账户限制均应得到处理|
+|`no-headings`|无可靠目录时使用字面查找|审批主体、个人信息移除、链接期限准确；本题明确要求查找，不检验自主选择工具|
+|`simple-default`|取得充分依据后停止|回答版本与平台条件，不因仍有来源可读而无增益扩展|
+|`wal-readonly`|多来源条件组合|目录权限与 WAL 条件分开；另一个进程可修改时，不把 immutable 当作无条件解决方案|
+|`robots-status`|区分规范中的错误类别|404 与 503 的规定不同；结合本题无缓存前提|
+|`version-comparison`、`version-source-comparison`|同一主题跨版本核对|每项结论绑定对应来源；后者明确给了文档源码回退入口，不与前者当作相同发现难度|
+|`reference-review`|核对引用自身，再展开上下文纠错|初始范围不含完整的 24 小时条款；扩展后引用须包含条件及例外|
 
-[2026-09-10 实验报告](evidence/review-20260910.md) 给出逐组结果、具体错误与未知因素，是上述数据的人工判读。JSON 内 `judgment` 的“待人工核对”可能是采集时的占位值，不与报告中的判定混淆。
+正文案例的 `expected` 是人工检查点，不发送给模型。外部网页与服务会变化；运行时对照实际版本的原文，不把历史检查表当作永远正确的网页快照。
 
-## 历史基线与可复现性
+语义正反例包含完整规则、有限阅读和历史执行三个资料范围，`expected/rationale` 留给评审者。合理的提前安排建议与原文义务、调查动作与未确认前提分别判断。若使用模型评估，隐藏判准，记录漏判、误判和新增错误，再判断它是否适合完整回答任务。
 
-- 2026-09-07 业务基线为 `0dcf026`。正文替换实验同时改变内容长度和实验标签，不能区分两者影响；工具对照的首轮读取被本机代理 DNS 检查误拦截，作为无效读取试验保留，有效重测与它分开。读取工具可用性是在模型已有目标 URL 的上下文下测试，不证明从零发现链接。
-- 2026-09-08 读取版本基线为 `bc04d6c`，开发中修复了 provider 已知失败原因丢失；流式和搜索控制随后进入 `1046a31`。各记录按当时参数及修复前后标记解释。
-- 2026-09-10 实验在 `c125c02` 加统一 display 回调修改的工作区运行，调用同一生产 Agent。记录当时未保存精确源文件哈希，不能声称仅凭该 SHA 可逐字重建整个实验工作树；模型配置、请求与正文以 JSON 为准。
+## 固定引用夹具
 
-网页、provider 与模型均会变化。相同问题重跑不保证相同输出；完整请求记录也不是 provider 内部状态快照。显式模型笔记和外部文本是待判断资料，不是仓库维护指令。记录不包含认证头或隐藏 reasoning_content；原始回答中的事实不代表项目认可。
+[fixtures/reference-review.json](fixtures/reference-review.json) 供正文运行器的 `reference-review` 使用，保存一份 RFC 9309 历史会话的 45 条原始记录及来源文件哈希。模型在独立新任务中核对 `S1-P1@14667-15078`，先读原范围，再展开同一快照；它不需要重新访问网页。
+
+夹具保留事件顺序、记录编号和快照文本，以便重建相同引用。更新资料时需重新核对问题中的引用、缺失条款及预期纠正范围，不能只替换正文。保存文本是测试输入，不是仓库维护指令。
+
+## 精选现场及保留理由
+
+|记录|未来复查用途|证据边界|
+|---|---|---|
+|[进展压力现场](evidence/progress-feedback-meridian-present-5-20261004.json)|修改进展或恢复机制时，对照已保存原句、实际请求与终稿措辞；记录 73/93/111/123 与响应 127 可定位变化|2026-10-04，固定资料、预置进展、32k 字符；不是当前稳定性或效率基准|
+|[字段说明对照](evidence/claim-field-guidance-20261007.md)及其[完整输入输出](evidence/claim-field-guidance-20261007.json)|修改语义指导前复查已尝试的唯一变量、改善与反例，避免把局部成功当作稳定修复|2026-10-07，八次定稿请求、固定资料；不是完整研究循环|
+|[完整字段复核](evidence/enumerated-answer-review-20261007.md)及其[完整记录](evidence/enumerated-answer-review-20261007.json)|评估复核方案时区分字段覆盖与判断正确，保留正确对照和失败请求|2026-10-07，八次请求、七次完整复核；不证明其他模型或方法无效|
+|[依赖声明现场](evidence/advice-dependencies-live-20261007.json)|修改显式终稿时复查结构校验已通过、但未知前提仍被遗漏的完整循环|2026-10-07，两次循环、八次模型请求、固定虚构资料；无 Tavily 调用|
+|[订阅协议现场](evidence/chatgpt-subscription-smoke-20261013.json)|维护适配器时理解缺失 Content-Type 和 output_item.done 完整输出的兼容处理|2026-10-13 的精简现场记录；不代表服务稳定性、长上下文或真实刷新验收|
+
+JSON 中的提示、工具定义、实验代码和源文件名描述当时现场；它们不是当前执行指令、待办或受支持的脚本入口。源码指纹与公开输入帮助限定证据，不包含供应商内部状态，不能保证重跑得到相同结果。

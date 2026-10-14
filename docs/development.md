@@ -1,6 +1,6 @@
 # 开发指南
 
-Seekra 使用 Python 3.13、uv 和普通同步 Python 模块。首次运行与用户命令见 [README](../README.md)，模块职责与数据流见 [架构与契约](architecture.md)，按修改范围查阅对应章节。
+Seekra 使用 Python 3.13、uv 和同步 Python 模块。安装与用户命令见 [README](../README.md)，模块协作见 [架构](architecture.md)。
 
 ## 环境与运行
 
@@ -12,53 +12,54 @@ uv run seekra --help
 uv run seekra --repl
 ```
 
-首次使用需将 `.env.example` 复制为 `.env` 并填写 DeepSeek、Tavily 配置。已有配置不要覆盖。CLI 默认只读启动目录的 `.env`；在其它目录运行时使用 `--env-file PATH`。帮助、版本和离线工程测试无需真实密钥。
+首次运行按 README 配置 `.env`，不要覆盖已有配置。默认 DeepSeek 入口需要 DeepSeek 与 Tavily 配置；ChatGPT 订阅入口完成单独授权后只需 Tavily 配置。CLI 默认读取启动目录的 `.env`，其他路径通过 `--env-file PATH` 指定。帮助、版本和离线测试无需真实密钥。
 
-使用 `uv tool install --python 3.13 --editable .` 可安装本地源码命令。移动源码目录后需重新安装；项目虚拟环境可通过 `uv sync --locked` 重新绑定当前源码。安装命令的详细说明见 README。
+`uv tool install --python 3.13 --editable .` 可安装本地源码命令。移动源码目录后需重新安装；项目虚拟环境可通过 `uv sync --locked` 重新绑定。
 
-## 如何定位修改
+## 修改入口
 
-|修改目标|主要模块|需要关注的回归|
+|修改目标|主要模块|需要关注的行为|
 |---|---|---|
-|模型决策循环|`src/seekra/agent.py`|请求历史、工具配对、结束与失败回退|
-|上下文预算与恢复|`context.py`、`checkpoint.py`、`provider_context.py`|实际请求内容、阶段权限、检查点和续接数据缺失后的重建|
-|流式协议|`src/seekra/deepseek.py`|分片、DONE、工具组装、连接释放|
-|工具接口与校验|`src/seekra/tools.py`、`operations.py`|非法参数不联网、操作结果语义|
-|Search/Extract|`src/seekra/retrieval.py`|结果整理、失败原因、分页与快照|
-|资料与研究进展|`documents.py`、`delivery.py`、`research.py`、`progress.py`|快照与引用范围、交付裁剪、进展版本和局部更新|
-|显式终稿|`src/seekra/answers.py`|原文校验、自由排版、依赖声明和持久交付；不认证语义|
-|终端展示|`src/seekra/display.py`|正文一次输出、请求不变、诊断故障隔离|
-|命令与会话入口|`src/seekra/cli.py`|配置来源、独立目录安装入口、REPL|
+|研究循环与任务结束|`agent.py`、`runtime.py`|请求历史、工具配对、取消、失败与完成状态|
+|上下文与恢复|`context.py`、`checkpoint.py`、`provider_context.py`|实际请求、阶段权限、检查点与续接缺失后的重建|
+|模型协议与授权|`models.py`、`deepseek.py`、`chatgpt.py`、`chatgpt_auth.py`|流结束校验、工具组装、连接释放、身份与令牌刷新|
+|工具与网络获取|`tools.py`、`retrieval.py`、`operations.py`|非法参数不联网、结果语义、失败原因与快照|
+|正文与进展|`documents.py`、`delivery.py`、`research.py`、`progress.py`|稳定引用、实际交付范围、进展版本与局部更新|
+|显式终稿|`answers.py`|原文校验、排版覆盖、依赖声明和恢复交付|
+|终端与命令|`cli.py`、`display.py`、`input.py`、`windows_input.py`|配置来源、正文输出、运行中草稿与按键协议|
+|持久会话|`session.py`|提交、重载、未知工具结果、文件锁与 reset 隔离|
+
+以上模块位于 `src/seekra/`。正文、进展和历史视图都从已提交执行事实重建；判断上下文变更时，核对实际下一次模型请求，不能只看保存记录。
 
 ## 工程验证
-
-输入测试通过 prompt-toolkit 解析器和 pipe input 模拟分批粘贴，覆盖尾部换行、运行期间草稿、组合键及持久化提交边界；HTTP 使用本地假响应。这些测试不覆盖具体终端的剪贴板和物理键盘，相关行为的验收使用 Windows Terminal。
-
-Windows 输入适配复用 prompt-toolkit 的内部键盘转换方法；当前锁定版本为 3.0.53。升级该依赖时需核对转换方法是否引入实例初始化状态，并运行 `test_windows_input.py`，物理按键与剪贴板仍需在实际终端验证。HTTPX 使用 `httpx[socks]`，安装时同时提供 SOCKS 代理所需依赖。
 
 ```powershell
 uv run python -X utf8 -m unittest discover -s tests -v
 ```
 
-测试从已安装的同一个 `seekra` 包导入，使用假配置和 MockTransport，不访问真实模型或搜索服务。安装入口测试会在临时目录中启动子进程。测试类别与真实能力判定见 [验证指南](validation.md)。
+测试使用假模型、MockTransport、本机测试服务及临时目录，不访问真实模型或搜索服务。安装入口测试会启动子进程。按修改范围选择测试与实测，具体见 [验证方法](validation.md)。
 
-## 真实服务验证
+Windows 输入适配使用 prompt-toolkit 的内部键盘转换方法。升级依赖时检查该方法是否新增实例初始化状态，并运行 `test_windows_input.py`；剪贴板和物理组合键仍需实际 Windows Terminal 验证。
 
-列出用例不会调用 API：
+默认 CLI 保存会话；测试 CLI 时使用临时 `--session-dir` 或 `--no-session`。`Model.generate`、`ToolRegistry` 与 `execute_run` 是嵌入和离线模拟入口。恢复未完成任务的接口与兼容条件见架构说明。
+
+## 能力检查与诊断
 
 ```powershell
 uv run python -X utf8 scripts/run_live_case.py --list
+uv run python -X utf8 scripts/check_documents.py --list
 ```
 
-显式运行会调用已配置服务并产生费用；输出路径必须是新文件：
+列举不调用服务。实际运行需要项目配置，会产生服务调用费用：
 
 ```powershell
 uv run python -X utf8 scripts/run_live_case.py --case page --output evals/runs/page.json
+uv run python -X utf8 scripts/check_documents.py --case long-section --output evals/runs/long-section.json
 ```
 
-`evals/runs/` 用于新运行产物；已选择用于解释项目行为的证据见 [证据索引](../evals/README.md)。现有 `run_live_case.py` 记录操作摘要和页面片段，不能代替完整请求对照。需要检查证据供应或 think 格式差异时使用索引中对应的实验脚本。
+基础运行器保存答案与操作摘要；正文运行器记录实际公开请求、资料交付和执行记录，可使用固定资料或真实 Tavily。输出路径必须不存在。案例目标、固定夹具和精选证据见 [评估入口](../evals/README.md)。运行结果先作为过程产物使用，任务结束后仅保留有明确复查用途的内容。
 
-`scripts/check_streaming.py` 是无工具流式开发验收入口，复用生产 SSE 接收器；它可测试直接回答与追问，不代表完整搜索 Agent 通过验收。
+`scripts/check_streaming.py` 单独诊断 DeepSeek 无工具流式文本、追问与输出故障，复用生产 SSE 接收器。它不覆盖完整研究循环或 ChatGPT 订阅入口；仅需要定位这一层时使用。
 
 ## 构建与分发
 
@@ -66,14 +67,4 @@ uv run python -X utf8 scripts/run_live_case.py --case page --output evals/runs/p
 uv build
 ```
 
-`dist/` 内的 wheel 和源码包是构建时的快照，不随源码编辑更新；可编辑安装运行当前源码，不依赖这些包。需要分发时重新构建并验证安装入口。
-
-本项目当前没有把真实服务实验变成自动通过/失败的 CI 评分。离线测试成功只证明所覆盖的工程行为，不能认证答案事实正确。
-
-## 持久运行开发
-
-默认 CLI 自动保存会话，离线模拟 CLI 测试使用临时 `--session-dir` 或 `--no-session`，不要把真实会话纳入测试夹具。新增研究工具通过 ToolRegistry 接入；Model.generate 的响应与 usage 可用假模型测试，而无需模拟 provider 协议。
-
-恢复相关的验证方法与覆盖边界见 [验证指南](validation.md#持久会话与上下文验收)。
-
-直接调用 `run_agent(..., session=session, resume=True, question=None)` 可恢复最近未完成研究；`execute_run` 返回 RunResult 供新调用者检查 status。具体接口与限制见 [架构契约](architecture.md)。
+`dist/` 内的包是构建时快照，不随源码变化；可编辑安装运行当前源码。分发前重新构建并验证安装入口。真实服务评估目前没有自动 CI 质量评分，离线测试通过不认证研究答案正确。

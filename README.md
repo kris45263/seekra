@@ -23,7 +23,7 @@ Copy-Item .env.example .env
 
 ```dotenv
 DEEPSEEK_API_KEY=你的DeepSeek密钥
-DEEPSEEK_MODEL=deepseek-v4-flash
+DEEPSEEK_MODEL=deepseek-flash
 TAVILY_API_KEY=你的Tavily密钥
 ```
 
@@ -150,7 +150,7 @@ seekra --env-file "C:\path\to\seekra\.env" --repl
 
 工具成功只代表取得内容，不证明来源可靠、版本适用或模型结论正确。网页提取可能失败或不完整，不支持登录及交互式浏览器操作。同一 Session 不支持并发运行。
 
-模型提交的研究状态单版最多 8,000 个序列化字符，包含稳定编号、原句和关联；最多 20 项发现、20 项缺口和 10 个阅读目标。`state_budget` 返回实际占用与剩余量。程序生成的导航、交付概况和关联视图另计每次请求预算。默认工具集合使用研究进展，CLI 已移除旧的结构化笔记开关。临时整理阶段限制普通资料获取，保留局部引用回查和直接回答；已有有效进展才能形成检查点。原始问题、最新进展或必要资料入口仍不能放入预算时暂停。字符上限不等于模型 token 窗口或本地内存上限，长问题仍可能被服务拒绝。
+研究状态、资料窗口和每次请求分别有大小限制；字符上限不等于模型 token 窗口或本地内存上限。必要内容无法放入请求时任务会暂停，保存的记录仍可回查。默认使用研究进展工具；旧笔记保留 Python 兼容入口。接口与恢复规则见 [架构说明](docs/architecture.md)。
 
 ## 开发者入口
 
@@ -165,8 +165,9 @@ uv run python -X utf8 -m unittest discover -s tests -v
 - [架构与数据契约](docs/architecture.md)：研究循环、模块职责、Session、流式执行与设计理由。
 - [开发指南](docs/development.md)：开发环境、修改位置、运行测试与构建分发包。
 - [验证方法与能力边界](docs/validation.md)：测试用例、判定标准、已验证和未覆盖范围。
-- [研究发现与已知问题](docs/research-findings.md)：think、证据归因、目标匹配和噪声的实际观察。
-- [实验案例与证据](evals/README.md)：问题原文、精选结果和复现脚本。
+- [研究进展](docs/research-progress.md)：发现、缺口、引用与阅读目标的保存和更新。
+- [研究发现与已知问题](docs/research-findings.md)：条件忠实性、进展使用和模型复核的证据边界。
+- [评估案例与证据](evals/README.md)：可重复的能力检查、固定夹具和精选反例。
 
 ### 原生 reasoning 与恢复
 
@@ -204,6 +205,9 @@ src/
    ├─ agent.py       模型循环、预算、会话提交与回退
    ├─ runtime.py     模型与运行接口、取消令牌
    ├─ models.py      DeepSeek 适配与用量归一化
+   ├─ chatgpt.py     ChatGPT 订阅模型适配
+   ├─ chatgpt_auth.py  订阅授权与受保护凭据
+   ├─ checkpoint.py  预算整理阶段与权限
    ├─ provider_context.py  供应商续接字段与业务上下文重建
    ├─ context.py     上下文投影和历史索引
    ├─ deepseek.py    SSE 接收、正文与工具调用组装
@@ -211,6 +215,7 @@ src/
    ├─ retrieval.py   搜索结果处理、页面读取与续读
    ├─ documents.py   来源关联、正文快照、小节与本地回查
    ├─ research.py    研究进展校验与正文交付范围
+   ├─ answers.py     可选显式终稿校验与交付
    ├─ progress.py    进展局部合并、稳定编号与阅读导航
    ├─ operations.py  公共操作结果约定
    ├─ display.py     终端展示

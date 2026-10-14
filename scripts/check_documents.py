@@ -135,7 +135,7 @@ CASES = {
                     '先读取这条引用自身，判断它是否足以支持“缓存不应使用超过24小时，除非 robots.txt 不可达”。'
                     '若引用不足，再展开同一快照的周边正文，给出能支持该声明的正确引用，保存当前核对结果。',
         'mode': 'real_model_prior_real_snapshot',
-        'seed_file': 'documents-robots-status-20261001.json',
+        'seed_file': 'reference-review.json',
         'expected': ['exact reference read excludes the 24-hour clause',
                      'context expansion acquires the clause with a new reference',
                      'save a reference that actually contains the 24-hour condition and its exception'],
@@ -149,7 +149,7 @@ def run_case(case_name, output, *, seed=None, max_context_chars=120000, thinking
         raise ValueError('输出文件已存在，请选择新路径')
     case = CASES[case_name]
     if seed is None and case.get('seed_file'):
-        source = ROOT / 'evals/evidence' / case['seed_file']
+        source = ROOT / 'evals/fixtures' / case['seed_file']
         prior = json.loads(source.read_text(encoding='utf-8'))
         seed = {'records': prior['records'], 'kind': 'prior_real_session_new_task', 'start_new_task': True,
                 'source': source.name, 'source_sha256': hashlib.sha256(source.read_bytes()).hexdigest(),

@@ -1,32 +1,18 @@
 [
   {
     "id": "simple",
-    "question": "只回复“你好”，不需要搜索。",
-    "structured_think": false
+    "question": "只回复“你好”，不需要搜索。"
   },
   {
     "id": "page",
-    "question": "请读取 https://docs.python.org/3.13/c-api/memory.html ，只依据这一页，说明 The mimalloc allocator 小节明确写了什么；若页面没有说明某种构建必须使用它，请区分未记载和不存在。",
-    "structured_think": false
+    "question": "请读取 https://docs.python.org/3.13/c-api/memory.html ，只依据这一页，说明 The mimalloc allocator 小节明确写了什么；若页面没有说明某种构建必须使用它，请区分未记载和不存在。"
   },
   {
     "id": "failure-retest",
-    "question": "请读取 https://example.com/mini-core-nonexistent-20260908 ，如果无法读取，告诉我发生了什么，不要改查其他页面。",
-    "structured_think": false
+    "question": "请读取 https://example.com/mini-core-nonexistent-20260908 ，如果无法读取，告诉我发生了什么，不要改查其他页面。"
   },
   {
     "id": "boundary",
-    "question": "根据 Python 3.13 官方文档，mimalloc 在普通 GIL 构建与 free-threaded 构建中的启用条件分别是什么？捆绑、默认使用和必须使用是否相同？请提供官方来源，不要混用其他 Python 版本。",
-    "structured_think": false
-  },
-  {
-    "id": "note-free",
-    "question": "请读取 https://docs.python.org/3.13/howto/free-threading-python.html ，使用 think_tool 整理已观察信息、判断和下一步，然后用三句话回答：本页是否明确说 mimalloc 在自由线程构建中必须使用？请只依据读到的内容，不把未记载解释为不存在。",
-    "structured_think": false
-  },
-  {
-    "id": "note-structured",
-    "question": "请读取 https://docs.python.org/3.13/howto/free-threading-python.html ，使用 think_tool 整理已观察信息、判断和下一步，然后用三句话回答：本页是否明确说 mimalloc 在自由线程构建中必须使用？请只依据读到的内容，不把未记载解释为不存在。",
-    "structured_think": true
+    "question": "根据 Python 3.13 官方文档，mimalloc 在普通 GIL 构建与 free-threaded 构建中的启用条件分别是什么？捆绑、默认使用和必须使用是否相同？请提供官方来源，不要混用其他 Python 版本。"
   }
 ]

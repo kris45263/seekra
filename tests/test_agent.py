@@ -50,7 +50,7 @@ class AgentTests(unittest.TestCase):
                                   model="test-deepseek", deepseek_api_key="fake-ds",
                                   tavily_api_key="fake-tv")
 
-    def test_search_think_then_search_depends_on_previous_result(self):
+    def test_search_progress_then_search_depends_on_previous_result(self):
         """两种不同搜索结果必须引出不同的后续查询，且所有历史逐轮保留。"""
         for discovered in ("青松", "白桦"):
             with self.subTest(discovered=discovered):
@@ -139,10 +139,10 @@ class AgentTests(unittest.TestCase):
     def test_invalid_arguments_and_unknown_tools_are_returned_to_model(self):
         """错误工具请求可由模型在下一轮修正，且不执行任意工具。"""
         for tool in [call("unknown", {}), call("tavily_search", {"query": 3}),
-                     call("think_tool", {"reflection": ""}),
-                     call("think_tool", {"reflection": "笔记", "extra": 1}),
+                     call("tavily_search", {"query": ""}),
+                     call("tavily_search", {"query": "查询", "extra": 1}),
                      {"id": "bad", "type": "function", "function": {
-                         "name": "think_tool", "arguments": "{"}}]:
+                         "name": "tavily_search", "arguments": "{"}}]:
             with self.subTest(tool=tool):
                 seen = []
                 def handler(request):
@@ -150,7 +150,13 @@ class AgentTests(unittest.TestCase):
                     seen.append(messages)
                     if len(seen) == 1:
                         return reply(calls=[tool])
-                    self.assertIn("error", json.loads(messages[-1]["content"]))
+                    result = json.loads(messages[-1]["content"])
+                    self.assertEqual(result["error_code"], "invalid_arguments")
+                    self.assertTrue(result["error"])
+                    if tool["function"]["name"] == "unknown":
+                        self.assertIn("未注册工具", result["error"])
+                    else:
+                        self.assertNotIn("未注册工具", result["error"])
                     return reply("已停止")
                 self.assertEqual(self.run_with(handler), "已停止")
 
