@@ -4,6 +4,8 @@ import json
 
 from .documents import canonical
 
+MAX_STATE_CHARS = 8000
+
 OP_FIELDS = {
     'add_finding': ({'summary','conditions','status','references'}, {'summary','conditions','status','references','gap_ids','evidence_quotes'}),
     'revise_finding': ({'id'}, {'id','summary','conditions','status','references','gap_ids','evidence_quotes'}),
@@ -22,6 +24,99 @@ OP_FIELDS = {
 def _text(value, name, required=True):
     if not isinstance(value, str) or (required and not value.strip()):
         raise ValueError(f'{name} 需要文本' + ('且不能为空' if required else ''))
+
+
+def _checked_references(session, refs, revision, label):
+    """按当前任务已确认的交付范围规范化引用，不生成另一份研究状态。"""
+    docs = session.documents
+    run = session.last_run
+    if not isinstance(refs, list) or not 1 <= len(refs) <= 8:
+        raise ValueError(f'{label}.references 需要 1–8 个正文引用；'
+                         f'无正文依据的事项请写入 gaps。本次更新未保存，base_revision 仍为 {revision}。')
+    checked = []
+    for ref_index, ref in enumerate(refs):
+        location = f'{label} 的第 {ref_index+1} 个引用 references[{ref_index}]'
+        unchanged = f'本次更新未保存，base_revision 仍为 {revision}。'
+        try:
+            ref = docs.validate_reference(ref)
+        except ValueError as exc:
+            raise ValueError(f'{location}：{exc}。{unchanged}') from exc
+        spans = run.get('delivered', {}).get(ref['document_id'], [])
+        if not any(left <= ref['start'] < ref['end'] <= right for left, right in spans):
+            position, gaps, nearby = ref['start'], [], []
+            for left, right in spans:
+                if right <= ref['start'] or left >= ref['end']:
+                    continue
+                nearby.append((left, right))
+                if left > position:
+                    gaps.append((position, left))
+                position = max(position, min(right, ref['end']))
+            if position < ref['end']:
+                gaps.append((position, ref['end']))
+            def ranges(values):
+                return '、'.join(f'[{left},{right})' for left, right in values[:3]) + (
+                    f'等 {len(values)} 段' if len(values) > 3 else '')
+            raise ValueError(f"{location}：{ref['document_id']} [{ref['start']},{ref['end']})"
+                             f'包含尚未交付的正文 {ranges(gaps)}。'
+                             f"已交付的相邻范围为 {ranges(nearby) or '无'}。"
+                             '请复制实际正文结果的 evidence_ref 分别引用，或先读取未交付范围；'
+                             f'不能把不相邻的已读范围合成一个连续引用。{unchanged}')
+        checked.append(ref)
+    return checked
+
+
+def _check_findings(session, findings, revision):
+    for finding_index, finding in enumerate(findings):
+        if not isinstance(finding, dict) or set(finding) != {'summary', 'conditions', 'status', 'references'}:
+            raise ValueError('每项发现需要 summary、conditions、status、references')
+        _text(finding['summary'], 'summary', True)
+        _text(finding['conditions'], 'conditions', False)
+        if finding['status'] not in ('supported', 'uncertain', 'conflicting'):
+            raise ValueError('发现状态需要 supported、uncertain 或 conflicting')
+        finding['references'] = _checked_references(session, finding['references'], revision,
+                                                    f'第 {finding_index+1} 项发现 findings[{finding_index}]')
+
+
+def _replace_research(session, base_revision, goal, findings, gaps, next_step):
+    """只生成待提交结果；由 tool_completed 的成功落盘发布最新视图。"""
+    run = session.last_run
+    if run is None or run['status'] != 'running':
+        raise ValueError('没有正在执行的研究任务')
+    revision = (run.get('research') or {}).get('revision', 0)
+    if type(base_revision) is not int or base_revision != revision:
+        raise ValueError(f'进展版本不一致，当前版本为 {revision}；请基于最新完整进展更新')
+    state = canonical({'goal': goal, 'findings': findings, 'gaps': gaps, 'next_step': next_step}, session.secrets)
+    size=len(json.dumps(state,ensure_ascii=False))
+    if size>MAX_STATE_CHARS:
+        raise ValueError(f'研究进展超过 8000 字符：实际 {size}，至少需要减少 {size-MAX_STATE_CHARS} 字符；'
+                         '请整理为简短发现、条件、引用和缺口后重试')
+    _text(state['goal'], 'goal', True)
+    _text(state['next_step'], 'next_step', False)
+    if not isinstance(state['findings'], list) or len(state['findings']) > 20:
+        raise ValueError('findings 需要最多 20 项的列表')
+    if not isinstance(state['gaps'], list) or len(state['gaps']) > 20:
+        raise ValueError('gaps 需要最多 20 项的列表')
+    for gap in state['gaps']:
+        _text(gap, 'gap', True)
+    _check_findings(session, state['findings'], revision)
+    size=len(json.dumps(state,ensure_ascii=False))
+    if size>MAX_STATE_CHARS:
+        raise ValueError(f'解析正文引用后研究进展超过 8000 字符：实际 {size}，至少需要减少 {size-MAX_STATE_CHARS} 字符；'
+                         '请精简发现、条件和缺口后重试')
+    return {'operation': 'update_research', 'status': 'success', 'content_kind': 'research_state',
+            'run_id': run['id'], 'revision': revision+1, 'state': state,
+            'notice': '模型生成的研究进展；程序只校验结构、已交付范围和引用，不认证结论。'}
+
+
+def update_research(session, base_revision, goal=None, findings=None, gaps=None, next_step=None, operations=None):
+    """正式接口使用局部操作；全量参数仅保留旧 Python 调用的兼容语义。"""
+    if operations is None:
+        if ((session.last_run or {}).get('research') or {}).get('schema_version') == 2:
+            raise ValueError('当前进展已使用局部更新格式；请提交 operations，避免重置已有编号和项目')
+        return _replace_research(session, base_revision, goal, findings, gaps, next_step)
+    if findings is not None or gaps is not None:
+        raise ValueError('operations 不能与旧全量 findings/gaps 混用')
+    return update_progress(session, base_revision, operations, goal, next_step)
 
 
 def _initial(previous):
@@ -143,7 +238,6 @@ def _check_quotes(finding,documents):
 
 
 def update_progress(session, base_revision, operations, goal=None, next_step=None):
-    from .research import _replace_research, MAX_STATE_CHARS
     run = session.last_run
     if run is None or run['status'] != 'running':
         raise ValueError('没有正在执行的研究任务')
@@ -160,9 +254,6 @@ def update_progress(session, base_revision, operations, goal=None, next_step=Non
     if next_step is not None:
         _text(next_step,'next_step',False); state['next_step'] = next_step
     finding_required={'summary','conditions','status','references'}
-    finding_fields=finding_required|{'gap_ids','evidence_quotes'}
-    gap_fields={'question','answer_impact'}
-    target_fields={'target','view','purpose','cursor','query','gap_ids'}
     for operation in operations:
         if not isinstance(operation,dict) or not isinstance(operation.get('op'),str):
             raise ValueError('每项操作需要 op')
@@ -177,10 +268,6 @@ def update_progress(session, base_revision, operations, goal=None, next_step=Non
         field = {'finding':'findings','gap':'gaps','target':'read_targets'}[kind]
         data = {k:v for k,v in operation.items() if k!='op'}
         if op.startswith('add_') and op in {'add_finding','add_gap','add_read_target'}:
-            required=finding_required if kind=='finding' else {'question'} if kind=='gap' else {'target','view','purpose'}
-            allowed=finding_fields if kind=='finding' else gap_fields if kind=='gap' else target_fields
-            if not required <= set(data) <= allowed:
-                raise ValueError(f'{op} 需要 {", ".join(sorted(required))}，参数不完整或含多余字段')
             counters[kind] += 1
             item = {'id':f'{kind}-{counters[kind]}', **data}
             if kind=='gap': item.update(status='open',resolution='',references=[])
@@ -191,22 +278,17 @@ def update_progress(session, base_revision, operations, goal=None, next_step=Non
             if item is None:
                 raise ValueError(f'{op} 的 id 不存在，请复制当前状态中的编号')
             if op in {'remove_finding','remove_gap','remove_read_target'}:
-                if data: raise ValueError(f'{op} 只接受 id')
                 state[field].remove(item)
             elif op in {'revise_finding','revise_gap','revise_read_target'}:
-                allowed = finding_fields if kind=='finding' else gap_fields if kind=='gap' else target_fields
-                if not data or not set(data)<=allowed: raise ValueError(f'{op} 修订字段不合法')
+                if not data: raise ValueError(f'{op} 修订字段不合法')
                 item.update(data)
             elif op in {'resolve_gap','dismiss_gap'}:
-                if not {'resolution'} <= set(data) <= {'resolution','references'}:
-                    raise ValueError(f'{op} 需要 resolution，可带 references')
                 _text(data['resolution'],'resolution')
                 refs = data.get('references',[])
                 if op=='resolve_gap' and not refs:
                     raise ValueError('解决事实缺口需要正文 references；暂未核实请保持 open')
                 item.update(status='resolved' if op=='resolve_gap' else 'dismissed',resolution=data['resolution'],references=refs)
             elif op=='reopen_gap':
-                if data: raise ValueError('reopen_gap 只接受 id')
                 item.update(status='open',resolution='',references=[])
             else:
                 raise ValueError(f'未知进展操作：{op}')
@@ -215,19 +297,16 @@ def update_progress(session, base_revision, operations, goal=None, next_step=Non
         raise ValueError('发现/缺口最多20项，阅读目标最多10项；请明确整理已有项目')
     _check_links(state)
     findings=[{k:f[k] for k in finding_required} for f in state['findings']]
-    checked = _replace_research(session, revision, state['goal'] or '当前任务', findings,
-                                [g['question'] for g in state['gaps']], state['next_step'])
-    for finding, normalized in zip(state['findings'], checked['state']['findings']):
-        finding['references'] = normalized['references']
+    _check_findings(session, findings, revision)
+    for finding, checked in zip(state['findings'], findings, strict=True):
+        finding['references'] = checked['references']
         _check_quotes(finding,session.documents)
     for gap in state['gaps']:
         _text(gap['question'],'question')
         if 'answer_impact' in gap:
             _text(gap['answer_impact'],'answer_impact',False)
         if gap['references']:
-            checked = _replace_research(session, revision, '缺口依据核对', [{
-                'summary':gap['resolution'],'conditions':'','status':'supported','references':gap['references']}], [], '')
-            gap['references'] = checked['state']['findings'][0]['references']
+            gap['references'] = _checked_references(session, gap['references'], revision, f"缺口 {gap['id']}")
     for target in state['read_targets']:
         _text(target['purpose'],'purpose')
         if target.get('cursor') is None: target.pop('cursor',None)

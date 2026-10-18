@@ -1,5 +1,5 @@
 """模型与运行的公共接口，不依赖 provider 或终端。"""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from contextlib import contextmanager
 import threading
 from typing import Protocol, Callable
@@ -60,11 +60,33 @@ class ModelResponse:
     provider: dict | None = None
 
 
+@dataclass(frozen=True)
+class ModelContinuation:
+    """与一条业务消息对应的续接快照；required 且 value 为 None 表示数据已缺失。"""
+    required: bool
+    value: dict | None = field(repr=False)
+
+
 class Model(Protocol):
     identity: str
 
     def generate(self, messages: list[dict], tools: list[dict], *,
                  on_content: Callable, on_usage: Callable, cancel: CancellationToken) -> ModelResponse: ...
+
+
+class ContextModel(Model, Protocol):
+    """可选的模型上下文接口；投影和请求构造均为纯计算，不访问会话或网络。"""
+    @property
+    def can_rebuild_context(self) -> bool: ...
+
+    def project_messages(self, messages: list[dict], continuations: tuple[ModelContinuation, ...]
+                         ) -> tuple[list[dict], set[int]]:
+        """在副本的 reasoning_content 中附加暂态续接，返回缺失续接的消息位置。"""
+        ...
+
+    def request_content(self, messages: list[dict], tools: list[dict]) -> dict:
+        """返回 generate 实际发送的消息及工具内容，供硬预算检查和摘要计算。"""
+        ...
 
 
 @dataclass

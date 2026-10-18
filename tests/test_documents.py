@@ -253,7 +253,7 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(source['evidence_ref'], window['evidence_ref'])
 
     def test_history_source_navigation_keeps_distinct_find_hits_without_marking_delivery(self):
-        from seekra.research import remember_delivery
+        from seekra.delivery import remember_delivery
         session = Session()
         body = 'Intro. ' * 1000 + '\nFIRST needle condition.\n' + 'gap ' * 300 + '\nSECOND needle exception.\n'
         page = add_page(session, body)

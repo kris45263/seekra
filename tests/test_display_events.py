@@ -126,7 +126,8 @@ class DisplayEventTests(unittest.TestCase):
                 body = json.loads(request.content)
                 requests.append(body)
                 if len(requests) == 1:
-                    return reply('先整理', [call('think_tool', {'reflection': '观察'})])
+                    return reply('先整理', [call('list_documents', {})])
+                self.assertEqual(json.loads(body['messages'][-1]['content'])['status'], 'success')
                 return reply('最终答案')
 
             with redirect_stdout(out), redirect_stderr(error_stream), httpx.Client(

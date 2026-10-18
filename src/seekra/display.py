@@ -223,7 +223,9 @@ class AgentDisplay:
         calls = after['calls'] - before['calls']
         if not calls:
             return
-        delta = {key: after[key]-before[key] for key in after}
+        # 只计算本视图使用的累计计数；provider 的可选指标可能缺失或未知。
+        delta = {key: after[key]-before[key] for key in (
+            'calls', 'missing_calls', 'input_tokens', 'output_tokens', 'input_reports', 'output_reports')}
         text = '本次 token：' + _usage_totals_text(delta)
         if before['calls']:
             text += ' 对话累计：' + _usage_totals_text(after)

@@ -11,6 +11,27 @@ from test_deepseek_stream import ByteStream, event, DONE
 
 
 class UsageTests(unittest.TestCase):
+    def test_cli_summary_accepts_optional_and_unknown_reasoning_usage(self):
+        from seekra.cli import run_question
+        from seekra.session import Session
+        session = Session()
+        for reasoning in (None, None, 6, None):
+            with self.subTest(reasoning=reasoning, prior_calls=session.usage_totals()['calls']):
+                data = {'choices':[{'index':0, 'delta':{'role':'assistant', 'content':'完整回答'},
+                                    'finish_reason':'stop'}],
+                        'usage':{'prompt_tokens':50, 'completion_tokens':10,
+                                 'completion_tokens_details':{'reasoning_tokens':reasoning}}}
+                response = httpx.Response(200, headers={'content-type':'text/event-stream'},
+                    content='data: '+json.dumps(data)+'\n\ndata: [DONE]\n\n')
+                with httpx.Client(transport=httpx.MockTransport(lambda r:response)) as client, \
+                     redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as err:
+                    status = run_question('问题', client=client, session=session, verbose=False,
+                        config={'DEEPSEEK_API_KEY':'fake', 'TAVILY_API_KEY':'fake', 'DEEPSEEK_MODEL':'test'})
+                self.assertEqual(status, 0)
+                self.assertEqual(session.last_run['status'], 'completed')
+                self.assertIn('本次 token：输入 50，输出 10', err.getvalue())
+                self.assertEqual(err.getvalue().count('本次 token'), 1)
+
     def test_partial_usage_keeps_known_input_and_does_not_invent_output(self):
         from seekra.session import Session
         from seekra.display import AgentDisplay
@@ -53,7 +74,7 @@ class UsageTests(unittest.TestCase):
                     self.assertNotIn('token', err.getvalue())
                     if fail:
                         raise httpx.ConnectError('断网')
-                message = ({'role':'assistant','tool_calls':[{'index':0, **call('think_tool', {'reflection':'检查'})}]}
+                message = ({'role':'assistant','tool_calls':[{'index':0, **call('list_documents', {})}]}
                            if count == 1 else {'role':'assistant','content':'最终回答'})
                 data = {'choices':[{'index':0,'delta':message,'finish_reason':'tool_calls' if count==1 else 'stop'}],
                         'usage':{'prompt_tokens':100,'completion_tokens':2}}

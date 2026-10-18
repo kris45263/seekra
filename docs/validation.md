@@ -21,7 +21,7 @@ uv run python -X utf8 -m unittest discover -s tests -v
 |历史与终稿|`test_history_review.py`、`test_answer_submission.py`|原任务归属、当时进展、原文与排版校验、保存后交付|
 |CLI 与会话|`test_session.py`、`test_cli_sessions.py`、`test_cli_package.py`、`test_repl.py`|会话隔离、独立目录入口、配置来源与恢复命令|
 |显示与输入|`test_display_events.py`、`test_stream_display.py`、`test_input_editor.py`、`test_repl_paste.py`、`test_windows_input.py`|正文与诊断故障分离、草稿、粘贴、按键转换|
-|无工具诊断脚本|`test_streaming_check.py`|该脚本的追问、错误、取消和输出故障；不认证产品研究能力|
+|验收与诊断脚本|`test_live_case.py`、`test_streaming_check.py`|基础验收在取消后仍保留已提交工具摘要；无工具诊断的追问、错误、取消和输出故障；不认证产品研究能力|
 
 涉及历史、进展或压缩时，检查实际选入下一次请求的内容。工具成功、磁盘保存、准备选择和确认交付是不同事件。测试用假模型可以证明交付和控制流程，不能证明真实模型会理解或采用这些内容。
 

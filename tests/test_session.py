@@ -4,6 +4,8 @@ from copy import deepcopy
 from datetime import date
 import importlib.util
 import json
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -28,6 +30,47 @@ class SessionTests(unittest.TestCase):
             return run_agent(question, client=client, model="test", deepseek_api_key="fake-ds",
                              tavily_api_key="fake-tv",
                              session=self.session if session is None else session, thinking=False)
+
+    def test_model_commit_exposes_isolated_continuation_and_reload_marks_it_missing(self):
+        from seekra.runtime import ModelResponse
+        from seekra.session import Session
+        with tempfile.TemporaryDirectory() as directory:
+            session = Session.create(Path(directory))
+            session.record('run_started', run_id='r', question='q', system='s', config={})
+            response = ModelResponse({'role':'assistant', 'content':'answer'}, 'stop',
+                                     {'items':[{'opaque':'private-continuation'}]}, {'model':'test'})
+            entry_id = session.complete_model('r', response)
+            messages = session.last_run['messages']
+            snapshot = session.model_continuations(messages)
+            self.assertFalse(snapshot[0].required)
+            self.assertTrue(snapshot[-1].required)
+            self.assertEqual(snapshot[-1].value, response.continuation)
+            snapshot[-1].value['items'][0]['opaque'] = 'changed'
+            response.continuation['items'].clear()
+            self.assertEqual(session.model_continuations(messages)[-1].value,
+                             {'items':[{'opaque':'private-continuation'}]})
+            self.assertNotIn('private-continuation', session.path.read_text(encoding='utf-8'))
+            self.assertEqual(session.record_entry(entry_id)['provider'], {'model':'test'})
+            restored = Session.load(session.path)
+            restored_snapshot = restored.model_continuations(restored.last_run['messages'])
+            self.assertTrue(restored_snapshot[-1].required)
+            self.assertIsNone(restored_snapshot[-1].value)
+
+    def test_failed_model_commit_does_not_publish_response_or_continuation(self):
+        from seekra.runtime import ModelResponse
+        from seekra.session import Session
+        with tempfile.TemporaryDirectory() as directory:
+            session = Session.create(Path(directory))
+            session.record('run_started', run_id='r', question='q', system='s', config={})
+            messages = list(session.last_run['messages'])
+            response = ModelResponse({'role':'assistant', 'content':'answer'}, 'stop',
+                                     {'opaque':'private-continuation'})
+            with patch('seekra.session.os.fsync', side_effect=OSError('storage unavailable')):
+                with self.assertRaisesRegex(OSError, 'storage unavailable'):
+                    session.complete_model('r', response)
+            self.assertEqual(session.last_run['messages'], messages)
+            self.assertFalse(any(entry.value is not None for entry in session.model_continuations(messages)))
+            self.assertFalse(any(record['kind']=='model_completed' for record in session.records))
 
     def test_followup_keeps_tools_and_answer_without_duplicates(self):
         """第二次输入收到完整旧历史，并更新唯一系统提示词。"""

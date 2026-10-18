@@ -7,7 +7,7 @@ import unittest
 
 from seekra.delivery import fit_latest_batch, latest_batch_indices
 from seekra.context import build_context, ContextLimit
-from seekra.research import remember_delivery
+from seekra.delivery import remember_delivery
 from seekra.session import Session
 from test_documents import add_page
 

@@ -118,6 +118,9 @@ seekra --version
 | `--repl` | 连续对话 |
 | `--verbose` | 展示工具参数、结果、累计调用和计时 |
 | `--env-file PATH` | 指定配置文件，默认读取当前工作目录的 `.env` |
+| `--provider deepseek\|chatgpt` | 选择模型入口，默认 `deepseek`；订阅入口见下文 |
+| `--chatgpt-login` | 单独运行浏览器授权，不同时执行研究任务 |
+| `--chatgpt-profile 名称` | ChatGPT 本地账号标签，默认 `default`；登录和运行使用同一标签 |
 | `--session ID` / `--resume [ID]` | 选择会话 / 打开最近有内容的会话或指定会话进入 REPL |
 | `--continue ID` | 单次接续指定会话最后一次未完成执行 |
 | `--sessions` / `--session-dir PATH` | 列出会话 / 指定存储目录 |
@@ -202,7 +205,7 @@ src/
    ├─ cli.py         配置、命令行与 REPL
    ├─ input.py       持续编辑区、粘贴与输入调度
    ├─ windows_input.py  Windows 键盘协议适配
-   ├─ agent.py       模型循环、预算、会话提交与回退
+   ├─ agent.py       任务循环、工具调度与结束状态
    ├─ runtime.py     模型与运行接口、取消令牌
    ├─ models.py      DeepSeek 适配与用量归一化
    ├─ chatgpt.py     ChatGPT 订阅模型适配
@@ -212,14 +215,15 @@ src/
    ├─ context.py     上下文投影和历史索引
    ├─ deepseek.py    SSE 接收、正文与工具调用组装
    ├─ tools.py       工具定义、参数校验与分派
-   ├─ retrieval.py   搜索结果处理、页面读取与续读
-   ├─ documents.py   来源关联、正文快照、小节与本地回查
-   ├─ research.py    研究进展校验与正文交付范围
+   ├─ retrieval.py   搜索与页面内容获取
+   ├─ documents.py   正文快照、本地读取、裁剪后的范围与续读
+   ├─ delivery.py    整批工具结果预算与正文交付统计
+   ├─ research.py    研究进展工具参数描述
    ├─ answers.py     可选显式终稿校验与交付
-   ├─ progress.py    进展局部合并、稳定编号与阅读导航
+   ├─ progress.py    进展校验、局部合并、稳定编号与阅读导航
    ├─ operations.py  公共操作结果约定
    ├─ display.py     终端展示
-   └─ session.py     持久执行记录与会话恢复
+   └─ session.py     执行记录、会话恢复与模型续接缓存
 tests/             离线工程回归
 docs/              开发者知识库
 evals/             真实案例与实验证据

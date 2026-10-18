@@ -29,10 +29,52 @@ def native(text='', calls=None, reasoning=SECRET):
 
 
 class ReasoningTests(unittest.TestCase):
+    def test_recovery_latest_batch_is_scoped_to_its_model_response(self):
+        for recovery in ('budget', 'reload'):
+            with self.subTest(recovery=recovery), tempfile.TemporaryDirectory() as directory:
+                session = Session.create(Path(directory))
+                cancel = CancellationToken()
+                requests, searches = [], []
+                def transport(request):
+                    body = json.loads(request.content)
+                    if request.url.host == 'api.tavily.com':
+                        searches.append(body['query'])
+                        return httpx.Response(200, json={'results':[{
+                            'url':'https://example.org/'+body['query'], 'title':body['query'],
+                            'content':'Evidence for '+body['query']}]})
+                    requests.append(body)
+                    number = len(requests)
+                    if number <= 3:
+                        return native(calls=[call('tavily_search', {'query':f'query-{number}'}, 'reused')],
+                            reasoning=SECRET*10000 if recovery == 'budget' and number == 3 else SECRET)
+                    return native('已完成。')
+                def interrupt(name, **details):
+                    if recovery == 'reload' and name == 'tool_result' and len(searches) == 3:
+                        cancel.cancel()
+                if recovery == 'reload':
+                    with self.assertRaises(KeyboardInterrupt):
+                        self.ask(session, transport, cancel=cancel, on_event=interrupt)
+                    session = Session.load(session.path)
+                    self.ask(session, transport, question=None, resume=True)
+                else:
+                    self.ask(session, transport)
+                self.assertEqual(searches, ['query-1', 'query-2', 'query-3'])
+                self.assertEqual(len(requests), 4)
+                user = next(m for m in requests[-1]['messages'] if m['role'] == 'user')
+                snapshot = json.loads(user['content'].split('[harness 提供的恢复资料]\n')[1])
+                latest = snapshot['latest_results']
+                self.assertEqual(len(latest), 1)
+                self.assertEqual(json.loads(latest[0]['arguments']), {'query':'query-3'})
+                self.assertEqual(latest[0]['result']['query'], 'query-3')
+                record = session.record_entry(latest[0]['record_id'])
+                self.assertEqual(json.loads(record['result']), latest[0]['result'])
+                self.assertEqual(len(snapshot['recent_results']), 3)
+                self.assertEqual(session.last_run['status'], 'completed')
+
     def test_recovery_directory_keeps_other_original_sections_as_navigation_only(self):
         from seekra.provider_context import _recovery_snapshot
         from seekra.checkpoint import present_actions
-        from seekra.research import remember_delivery
+        from seekra.delivery import remember_delivery
         from test_documents import add_page
         session=Session();page=add_page(session,'# Guide\n\n## Requirements\nPro required.\n\n## Limitations\nGuest excluded.')
         snapshot=_recovery_snapshot(session)
@@ -100,7 +142,7 @@ class ReasoningTests(unittest.TestCase):
     def test_rebuild_preserves_latest_tool_body_tail_in_actual_request(self):
         from seekra.models import DeepSeekModel
         from seekra.provider_context import _recovery_snapshot, prepare_model_context
-        from seekra.research import remember_delivery
+        from seekra.delivery import remember_delivery
         from test_documents import add_page, complete_tool
         from test_research import deliver
         session=Session()
@@ -164,7 +206,7 @@ class ReasoningTests(unittest.TestCase):
             run_agent('核实条件', client=client, model='deepseek-flash', deepseek_api_key='fake-ds',
                       tavily_api_key='fake-tv', session=session)
         self.assertEqual(len(requests),2)
-        self.assertTrue(session._provider_states)
+        self.assertTrue(any(entry.value is not None for entry in session.model_continuations(session.messages)))
 
     def ask(self, session, transport, question='核实条件', **kwargs):
         with httpx.Client(transport=httpx.MockTransport(transport)) as client:
@@ -266,7 +308,7 @@ class ReasoningTests(unittest.TestCase):
             self.ask(session, transport, cancel=cancel)
         self.assertTrue(stream.closed)
         self.assertEqual(session.last_run['status'], 'interrupted')
-        self.assertFalse(session._provider_states)
+        self.assertFalse(any(entry.value is not None for entry in session.model_continuations(session.last_run['messages'])))
         self.assertNotIn(SECRET, str(session.records))
         self.assertFalse(any(r['kind'] == 'model_completed' for r in session.records))
 
@@ -277,14 +319,14 @@ class ReasoningTests(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):
             self.ask(session, lambda request: native(calls=[call('list_documents', {}, 'index')]),
                      cancel=cancel, on_event=event)
-        self.assertTrue(session._provider_states)
+        previous_messages = list(session.last_run['messages'])
+        self.assertTrue(any(entry.value is not None for entry in session.model_continuations(previous_messages)))
         with self.assertRaisesRegex(ValueError, '恢复配置'):
             self.ask(session, lambda request: self.fail('不能发出不同配置的恢复请求'),
                      question=None, resume=True, reasoning_effort='low')
         session.clear()
-        self.assertFalse(session._provider_states)
-        self.assertFalse(session._message_records)
-        self.assertFalse(session._continuation_required)
+        self.assertTrue(all(not entry.required and entry.value is None
+                            for entry in session.model_continuations(previous_messages)))
 
     def test_recovery_accepts_plain_text_from_custom_tools(self):
         from seekra.provider_context import _recovery_snapshot
@@ -384,7 +426,8 @@ class ReasoningTests(unittest.TestCase):
         from copy import deepcopy
         from seekra.models import DeepSeekModel
         from seekra.provider_context import _recovery_snapshot, prepare_model_context
-        from seekra.research import update_research, remember_delivery
+        from seekra.research import update_research
+        from seekra.delivery import remember_delivery
         from test_documents import add_page, complete_tool
         from test_research import deliver
         session=Session()

@@ -7,7 +7,7 @@ import unittest
 from seekra.context import history_index, read_history
 from seekra.agent import execute_run
 from seekra.research import update_research
-from seekra.research import remember_delivery
+from seekra.delivery import remember_delivery
 from seekra.runtime import ModelResponse
 from seekra.session import Session
 from seekra.tools import default_registry

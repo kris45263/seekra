@@ -141,7 +141,8 @@ class ChatGPTTests(unittest.TestCase):
                 self.assertIn('Supported fact.',data['input'][-1]['output'])
                 output=[{'type':'message','role':'assistant','content':[{'type':'output_text','text':'Final answer'}]}]
             return httpx.Response(200,headers={'content-type':'text/event-stream'},
-                content=event('response.completed',response={'status':'completed','output':output}))
+                content=event('response.completed',response={'status':'completed','output':output,
+                    'usage':{'input_tokens':20,'output_tokens':5,'output_tokens_details':{'reasoning_tokens':3}}}))
         with tempfile.TemporaryDirectory() as directory:
             config=Path(directory)/'.env';config.write_text('TAVILY_API_KEY=fake-tavily',encoding='utf-8')
             client=httpx.Client(transport=httpx.MockTransport(respond))
@@ -149,9 +150,10 @@ class ChatGPTTests(unittest.TestCase):
                  patch('seekra.chatgpt_auth.ChatGPTAuth.read',return_value={'access_token':'fake-access'}), \
                  patch('seekra.chatgpt_auth.ChatGPTAuth.access_token',return_value='fake-access'), \
                  patch('sys.argv',['seekra','--provider','chatgpt','--env-file',str(config),'--no-session','question']), \
-                 redirect_stdout(io.StringIO()) as out,redirect_stderr(io.StringIO()):
+                 redirect_stdout(io.StringIO()) as out,redirect_stderr(io.StringIO()) as err:
                 self.assertEqual(main(),0)
             self.assertEqual(out.getvalue(),'Final answer\n')
+            self.assertIn('本次 token：输入 40，输出 10',err.getvalue())
         self.assertEqual(requests,['api.openai.com','api.tavily.com','api.openai.com'])
 
     def test_reload_rebuilds_without_persisting_encrypted_reasoning_or_repeating_tool(self):

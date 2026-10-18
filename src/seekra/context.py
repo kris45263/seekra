@@ -8,7 +8,7 @@ def _selection(messages, selected, indices, total, offloaded, research=None, che
                session=None, extra_sources=(), payload_transform=None):
     """记录投影选择及替换值，能从运行消息复核实际请求，不重复保存完整正文。"""
     if session is not None:
-        from .research import remember_delivery
+        from .delivery import remember_delivery
         from .progress import present_progress
         visible = {}
         remember_delivery(visible, selected)

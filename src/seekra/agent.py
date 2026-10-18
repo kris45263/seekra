@@ -243,17 +243,7 @@ def execute_run(question, *, model, registry, session, resume=False,
                         raise ValueError('模型工具调用编号重复')
                 elif response.finish_reason != 'stop' or calls or not isinstance(message.get('content'),str) or not message['content'].strip():
                     raise RuntimeError('模型没有正常返回完整答案或工具调用')
-                extra = {}
-                if response.provider is not None:
-                    extra['provider'] = response.provider
-                if response.continuation is not None:
-                    encoded = json.dumps(response.continuation, ensure_ascii=False).encode()
-                    extra['provider_continuation'] = {'version': 1, 'characters': len(encoded.decode()),
-                                                     'sha256': hashlib.sha256(encoded).hexdigest()}
-                response_id = session.record('model_completed', run_id=run_id, message=message,
-                                             finish_reason=response.finish_reason, **extra)
-                if response.continuation is not None:
-                    session._provider_states[response_id] = deepcopy(response.continuation)
+                session.complete_model(run_id, response)
                 partial = []  # 已保存的完整消息不再属于未完成片段。
                 emit('model_response', round=iteration, content=message.get('content'),
                      tool_calls=calls, finish_reason=response.finish_reason)

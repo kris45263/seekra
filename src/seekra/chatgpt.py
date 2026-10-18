@@ -8,23 +8,23 @@ from .runtime import ModelResponse
 
 
 class ChatGPTModel:
+    can_rebuild_context = True
+
     def __init__(self, client, access_token, *, model='gpt-6.1-sol', reasoning_effort='medium'):
         self.client, self.access_token = client, access_token
         self.name, self.reasoning_effort = model, reasoning_effort
-        self.thinking = True
         self.identity = f'chatgpt-plan:{model}:effort={reasoning_effort}:responses-v1'
 
-    def project_messages(self, messages, session):
+    def project_messages(self, messages, continuations):
         projected, missing = [], set()
-        for index, message in enumerate(messages):
+        for index, (message, continuation) in enumerate(zip(messages, continuations, strict=True)):
             if message['role'] != 'assistant':
                 projected.append(message)
                 continue
-            record_id = session._message_records.get(id(message))
-            state = session._provider_states.get(record_id)
+            state = continuation.value
             if state and state.get('kind') != 'openai_responses':
                 state = None
-            if record_id in session._continuation_required and state is None:
+            if continuation.required and state is None:
                 missing.add(index)
             # 复用供应商续接字段的预算与脱敏路径；只含不透明密文，不含推理全文。
             projected.append({**message, 'reasoning_content': json.dumps((state or {}).get('items', []))})

@@ -34,15 +34,13 @@ def main() -> int:
         parser.error("输出文件已经存在，请选择新路径")
     case = next(case for case in cases if case["id"] == args.case)
     config = read_config(ROOT / ".env")
-    latest_messages = []
     model_calls = 0
 
     def capture(request):
-        """只读取模型请求的消息，不记录认证头；失败时也保留已回传的操作。"""
-        nonlocal latest_messages, model_calls
+        """只统计已发起的模型请求，不记录认证头或供应商续接内容。"""
+        nonlocal model_calls
         if request.url.host == "api.deepseek.com":
             model_calls += 1
-            latest_messages = json.loads(request.content)["messages"]
 
     session = Session()
     start = time.monotonic()
@@ -58,7 +56,8 @@ def main() -> int:
     except (Exception, KeyboardInterrupt) as exc:
         error = type(exc).__name__
     trace = []
-    for message in session.messages or latest_messages:
+    # 失败或取消也保留当前任务已提交的操作；最近请求可能尚未包含最后一次工具结果。
+    for message in (session.last_run or {}).get('messages', []):
         for call in message.get("tool_calls") or []:
             trace.append({"call_id": call["id"], "name": call["function"]["name"], "arguments": call["function"]["arguments"]})
         if message["role"] == "tool":

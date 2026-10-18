@@ -12,7 +12,7 @@ from seekra.display import session_transcript
 from seekra.runtime import ModelResponse
 from seekra.session import Session
 from seekra.tools import ToolRegistry, default_registry
-from seekra.research import remember_delivery
+from seekra.delivery import remember_delivery
 from test_agent import call
 from test_documents import add_page, begin
 from test_research import deliver

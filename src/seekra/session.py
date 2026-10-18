@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,7 +12,8 @@ import threading
 from uuid import uuid4
 
 from .documents import Documents, canonical
-from .research import remember_delivery
+from .delivery import remember_delivery
+from .runtime import ModelContinuation, ModelResponse
 
 RECORD_KINDS = {
     'session_created', 'session_reset', 'run_started', 'run_resumed', 'context_selected',
@@ -231,6 +233,34 @@ class Session:
         self.records.append(record)
         self._apply(record)
         return record['id']
+
+    def complete_model(self, run_id: str, response: ModelResponse) -> str:
+        """提交已校验的完整响应，成功后才发布对应的内存续接。"""
+        if self._owner != threading.get_ident():
+            with self.exclusive():
+                return self.complete_model(run_id, response)
+        continuation = deepcopy(response.continuation)
+        extra = {}
+        if response.provider is not None:
+            extra['provider'] = response.provider
+        if continuation is not None:
+            encoded = json.dumps(continuation, ensure_ascii=False).encode()
+            extra['provider_continuation'] = {'version': 1, 'characters': len(encoded.decode()),
+                                             'sha256': hashlib.sha256(encoded).hexdigest()}
+        entry_id = self.record('model_completed', run_id=run_id, message=response.message,
+                               finish_reason=response.finish_reason, **extra)
+        if continuation is not None:
+            self._provider_states[entry_id] = continuation
+        return entry_id
+
+    def model_continuations(self, messages: list[dict]) -> tuple[ModelContinuation, ...]:
+        """按会话业务消息顺序取得独立副本；调用方不需要知道记录与缓存的关联方式。"""
+        entries = []
+        for message in messages:
+            entry_id = self._message_records.get(id(message))
+            entries.append(ModelContinuation(entry_id in self._continuation_required,
+                                             deepcopy(self._provider_states.get(entry_id))))
+        return tuple(entries)
 
     def _apply(self, record):
         kind = record['kind']

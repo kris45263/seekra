@@ -40,18 +40,24 @@ class DeepSeekModel:
         if thinking or max_output_tokens != 8192:
             self.identity += f':thinking={thinking}:effort={reasoning_effort}:output={max_output_tokens}'
 
-    def project_messages(self, messages, session):
+    @property
+    def can_rebuild_context(self):
+        return self.thinking
+
+    def request_content(self, messages, tools):
+        return {'messages': messages, 'tools': tools}
+
+    def project_messages(self, messages, continuations):
         """在预算选择前附加协议字段；缺失数据由执行层明确重建上下文。"""
         if not self.thinking:
             return messages, set()
         projected, missing = [], set()
-        for i, message in enumerate(messages):
+        for i, (message, continuation) in enumerate(zip(messages, continuations, strict=True)):
             if message['role'] != 'assistant':
                 projected.append(message)
                 continue
-            record_id = session._message_records.get(id(message))
-            state = session._provider_states.get(record_id)
-            if record_id in session._continuation_required and state is None:
+            state = continuation.value
+            if continuation.required and state is None:
                 missing.add(i)
             projected.append({**message, 'content': message.get('content') or '',
                               'reasoning_content': (state or {}).get('reasoning_content', '')})

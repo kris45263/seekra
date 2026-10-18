@@ -8,7 +8,7 @@ from .context import ContextLimit
 from .documents import canonical
 from .delivery import latest_batch_indices, fit_latest_batch
 from .progress import present_progress
-from .research import remember_delivery, quote_projection
+from .delivery import remember_delivery, quote_projection
 
 
 def _recovery_snapshot(session):
@@ -23,7 +23,12 @@ def _recovery_snapshot(session):
     calls={call['id']:call for call in run['messages'][batch[0]-1]['tool_calls']} if batch else {}
     fresh_ids=set(calls)
     for record in reversed(session.records):
-        if record.get('run_id') != run['id'] or record['kind'] != 'tool_completed':
+        if record.get('run_id') != run['id']:
+            continue
+        if record['kind'] == 'model_completed':
+            # call_id 只标识所属响应内的调用；跨过该响应后都属于旧批次。
+            fresh_ids.clear()
+        if record['kind'] != 'tool_completed':
             continue
         try:
             payload = json.loads(record['result'])
@@ -141,7 +146,7 @@ def prepare_model_context(messages, definitions, session, max_chars, model):
                 if quotes is not None:recovery_sources.append(quotes)
             staged[user] = {**messages[user], 'content': messages[user]['content'] +
                             '\n\n[harness 提供的恢复资料]\n' + json.dumps(snapshot, ensure_ascii=False)}
-        projected, missing = projector(staged, session)
+        projected, missing = projector(staged, session.model_continuations(staged))
         result = prepare_context(projected, definitions, session, max_chars,
                                  message_start=current['start'] if current else None,
                                  extra_sources=recovery_sources,
@@ -168,9 +173,7 @@ def prepare_model_context(messages, definitions, session, max_chars, model):
         info['replacements'] = {str(i): {k: deepcopy(v) for k, v in message.items() if k != 'reasoning_content'}
                                 for i, message in zip(info['message_indices'], result[0])
                                 if {k: v for k, v in message.items() if k != 'reasoning_content'} != originals[i]}
-        content_builder = getattr(model, 'request_content', None)
-        wire_content = (content_builder(result[0], result[1]) if content_builder is not None
-                        else {'messages': result[0], 'tools': result[1]})
+        wire_content = model.request_content(result[0], result[1])
         encoded = json.dumps(wire_content, ensure_ascii=False)
         if len(encoded) > max_chars:
             raise ContextLimit('供应商实际消息与工具定义超过上下文字符上限')
@@ -184,7 +187,7 @@ def prepare_model_context(messages, definitions, session, max_chars, model):
         result = select(window)
         reason = 'missing_continuation'
     except ContextLimit:
-        if not getattr(model, 'thinking', False):
+        if not model.can_rebuild_context:
             raise
         result, reason = None, 'provider_context_budget'
     if result is None:
