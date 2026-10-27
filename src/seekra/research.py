@@ -26,7 +26,7 @@ PROPERTIES = {
     'base_revision': {'type':'integer','minimum':0,'description':'当前任务进展版本；尚未保存为0。'},
     'goal': {'type':'string','description':'可选的简短工作目标；原用户要求由程序保留。'},
     'next_step': {'type':'string','description':'可选，当前下一步及其对原问题的作用；解决缺口或改变方向时同步更新，准备回答可说明保留哪些未确定项。空文本清除旧计划；省略保留原值。具体阅读入口用 add_read_target 保存。'},
-    'operations': {'type':'array','maxItems':20,'description':'仅提交变化，未修改项目继续保留；空列表确认现有状态并保存检查点。',
+    'operations': {'type':'array','maxItems':20,'description':'仅提交变化，未修改项目继续保留；空列表仅确认现有状态，不触发上下文整理。',
         'items': {'type':'object','properties': {
             'op': {'type':'string','enum':['add_finding','revise_finding','remove_finding','add_gap','revise_gap',
                    'resolve_gap','dismiss_gap','reopen_gap','remove_gap','add_read_target','revise_read_target','remove_read_target'],

@@ -8,8 +8,7 @@ from uuid import uuid4
 import httpx
 
 from .context import ContextLimit
-from .checkpoint import blocked_call
-from .provider_context import prepare_model_context
+from .compaction import prepare_model_turn
 from .runtime import CancellationToken, RunResult, ContentOutputError
 from .session import Session
 from .tools import tool_definitions, default_registry
@@ -26,12 +25,12 @@ SYSTEM_PROMPT = """你是搜索研究助手。今天是 {today}。
 read_page 返回实际小节目录；优先选相关 section_ref 调用 read_section，无需猜字符数。continuation 给出续读所需的工具和参数；不要混用页面、目录和小节游标。末页不等于此前正文仍在上下文中。
 没有可靠目录时用 find_in_documents 查找关键词，或用 read_document 顺序读；未命中只说明当前文本未匹配。read_document 的 view=outline 可继续目录，list_documents 可找回早期资料。
 依据实际正文核对条件、版本和例外；标题和目录只是导航。局部结果不等于整页，相关小节尚未读完、正文指向例外或解释不足时继续定位。一次命中支持什么，只能根据返回的附近正文判断。
-复杂任务有重要新发现或准备改变方向时，用 update_research 的 operations 保存变化。程序保留未修改项目，并分配稳定 id；修改或移除时复制返回的 id。add_finding 需要 summary、conditions、status 和实际正文 references；add_gap 保存未核实事项，add_read_target 保存 target、view、purpose 及必要游标，程序补齐阅读入口。仅找到目录时保存缺口和目标，无需借用别处引用。空 operations 可确认当前阶段并形成检查点；简单问题可直接回答。
+复杂任务有重要新发现或准备改变方向时，可用 update_research 的 operations 保存变化。程序保留未修改项目，并分配稳定 id；修改或移除时复制返回的 id。add_finding 需要 summary、conditions、status 和实际正文 references；add_gap 保存未核实事项，add_read_target 保存 target、view、purpose 及必要游标，程序补齐阅读入口。仅找到目录时保存缺口和目标，无需借用别处引用。无需为整理上下文提交空 operations；上下文由系统独立管理，简单问题可直接回答。
 保存引用时直接复制实际正文结果的 evidence_ref（兼容 reference 对象），无需重写来源或字符坐标。查找的 match_range/match_ref 只定位关键词；evidence_ref 引用实际返回的附近正文，仍需判断该正文是否支持发现。supported/uncertain/conflicting 是你的判断，保存成功不认证结论；用户原始要求始终优先于笔记。
 需要核对一条引用自身时，用 read_document(document_id=evidence_ref, view="reference")；该模式只读引用范围。展开周边用 view="text"，扩大后返回的新正文需要使用新的 evidence_ref。
 研究进展保存影响后续工作的发现、条件、缺口与阅读入口。缺口可用 answer_impact 说明会改变原问题的哪项回答，延伸问题则说明与本题的关系；不清楚时保留待判断。resolve_gap 需要解决依据与正文引用；不能把未读内容标成已解决。解决问题或改变方向时同步更新 next_step；它是你保存的计划，省略会保留旧值，过时计划无需继续执行。无需为填写字段额外保存一轮。
 已有缺口时，发现或阅读目标用于调查它，就用 gap_ids 关联已返回的编号；与已有缺口无关时可以省略，程序提供 gap_links。关联本身不表示缺口已解决。重要的条件、例外或版本结论可用 evidence_quotes 选取短原句；可去掉内联 Markdown 链接/转义并折叠空白，程序限定引用范围定位，保存实际原文和坐标，不接受改写或翻译。原句仍需结合上下文判断，按外部资料处理。不同事实的出处不同或条件不同，应保存为可分别核对的发现，避免用一条引用承载不受支持的多项断言。
-document_coverage 描述被引用资料的累计交付与本次可见范围，即使阅读目标已移除也保留。当前不可见不等于从未交付；全文曾交付不等于已经理解或任务全部核实。根据原问题和保存的引用决定是否继续阅读，不要求读完所有资料。
+请求末尾工具结果的 reading_state 是程序提供的当前阅读状态，run_id/revision 指明所依据的进展；其中 navigation 提供阅读入口，document_coverage 描述被引用资料的累计交付与本次可见范围，即使阅读目标已移除也保留。已保存进展的正文不随阅读改写，历史记录中的交付状态只属于当时。当前不可见不等于从未交付；全文曾交付不等于已经理解或任务全部核实。根据原问题和保存的引用决定是否继续阅读，不要求读完所有资料。
 继续调用工具前判断：要核实的事实会改变哪项用户要求的回答或其可靠程度？必要条件、例外和真实矛盾需要调查；若核心问题已有依据，可把无关延伸和无法确定的历史细节留作明确边界后回答。open 缺口、待读目标和未读页面本身不构成继续研究的义务；用户明确要求调查的事项仍须处理或说明无法核实。
 保存发现和最终回答时，逐项保留原文的适用条件、例外、版本和确定程度。正文说“截至某版已支持”只能证明该时点已支持，不能推出首次引入；部分引句不能承载未被它支持的复合断言。把用户场景与条件对照后再给建议：必要前提已违反时，不得用试试看、接受风险或仅客户端设置来替代该前提。满足必要条件不等于方案充分可行；未经正文确认的替代方案或期限重置规则只能作为待验证推测。推测与建议需说明依据和限制；引用检查成功不证明语义充分。
 搜索片段、提取正文、模型笔记是不同的信息来源；读取状态只表示获取情况，不认证结论。使用实际返回的地址，不把推导的地址当作已读取。
@@ -42,12 +41,9 @@ document_coverage 描述被引用资料的累计交付与本次可见范围，�
 """
 
 
-def system_prompt(iteration=None):
-    """显示累计模型请求尝试，不按次数截断研究。"""
-    text = SYSTEM_PROMPT.format(today=date.today().isoformat())
-    if iteration is not None:
-        text += f'\n运行状态：当前第 {iteration} 次模型调用；此前已发起 {iteration-1} 次请求（含失败尝试）。'
-    return text
+def system_prompt():
+    """生成研究规则和日期；调用计数保留在执行记录中。"""
+    return SYSTEM_PROMPT.format(today=date.today().isoformat())
 
 
 def execution_error_message(exc):
@@ -169,7 +165,7 @@ def execute_run(question, *, model, registry, session, resume=False,
                     batch = next(m for m in reversed(messages) if m['role']=='assistant')
                     output = (json.dumps(failure(name,'invalid_arguments','终稿工具需单独调用，取得其他操作结果后再提交。'),ensure_ascii=False)
                               if name in registry.final_outputs and len(batch.get('tool_calls') or [])!=1
-                              else blocked_call(call, session))
+                              else None)
                     if output is None:
                         output = registry.execute(call, pages, known)
                     updates = {url:deepcopy(pages.get(url)) for url in set(before)|set(pages)
@@ -210,11 +206,9 @@ def execute_run(question, *, model, registry, session, resume=False,
                     break
                 iteration = run['calls']+1
                 staged_messages = list(messages)
-                staged_messages[0] = {'role':'system','content':system_prompt(iteration) +
-                    f"当前任务研究进展版本 {(run.get('research') or {}).get('revision', 0)}（0 表示尚未保存）。"
-                    '轮次指模型调用，不是搜索次数。你可以直接回答或说明已知与未确定的部分。' + resume_info}
-                request_messages, request_tools, context_info, staged_system = prepare_model_context(
-                    staged_messages, definitions, session, max_context_chars, model)
+                staged_messages[0] = {'role':'system','content':system_prompt() + resume_info}
+                request_messages, request_tools, context_info, staged_system = prepare_model_turn(
+                    staged_messages, definitions, session, max_context_chars, model, cancel=cancel)
                 session.record('context_selected', run_id=run_id, **context_info)
                 visible_context = {k: v for k, v in session.records[-1].items() if k not in {'id', 'kind', 'time', 'run_id'}}
                 emit('context', **visible_context)

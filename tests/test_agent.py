@@ -74,7 +74,14 @@ class AgentTests(unittest.TestCase):
                                       "list_documents", "find_in_documents", "read_document", "read_section", "update_research"})
                     messages = body["messages"]
                     if histories:
-                        self.assertEqual(messages[1:len(histories[-1])], histories[-1][1:])
+                        previous=[dict(m) for m in histories[-1]]
+                        if previous[-1]['role']=='tool':
+                            payload=json.loads(previous[-1]['content'])
+                            if 'reading_state' in payload:
+                                payload.pop('reading_state')
+                                previous[-1]['content']=json.dumps(payload,ensure_ascii=False)
+                                self.assertIn('reading_state',json.loads(messages[-1]['content']))
+                        self.assertEqual(messages[1:len(previous)],previous[1:])
                     histories.append(messages)
                     turn = len(histories)
                     if turn == 1:

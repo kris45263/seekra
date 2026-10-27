@@ -15,6 +15,45 @@ from test_research import deliver, state
 
 
 class ProgressUpdateTests(unittest.TestCase):
+    def test_reading_state_moves_to_tail_without_rewriting_saved_progress(self):
+        session=Session()
+        page=add_page(session,'# Guide\n'+'Condition and context.\n'*600)
+        deliver(session)
+        saved=self.save(session,[
+            {'op':'add_finding','summary':'待核实条件','conditions':'','status':'uncertain',
+             'references':[page['evidence_ref']]},
+            {'op':'add_read_target','target':page['document_id'],'view':'text','purpose':'核对剩余条件'}])
+        initial,_=build_context(session.last_run['messages'],[],session)
+        progress_index=len(initial)-1
+        original=json.dumps(session.records,ensure_ascii=False)
+        self.assertEqual(json.loads(initial[-1]['content'])['reading_state']['revision'],1)
+        self.assertNotIn('navigation',json.loads(initial[-1]['content']))
+        self.assertEqual(original,json.dumps(session.records,ensure_ascii=False))
+        complete_tool(session,'read_document',session.documents.read_document(
+            f"{page['document_id']}@1800-2400",view='reference'))
+        first=deliver(session)
+        current,info=build_context(session.last_run['messages'],[],session)
+        old=json.loads(current[progress_index]['content'])
+        self.assertNotIn('reading_state',old)
+        self.assertEqual(old['state'],saved['state'])
+        for messages in (first,current):
+            payloads=[json.loads(m['content']) for m in messages if m['role']=='tool']
+            self.assertEqual(sum('reading_state' in p for p in payloads),1)
+        self.assertEqual(first[progress_index],current[progress_index])
+        tail=next(json.loads(m['content']) for m in reversed(current) if m['role']=='tool')
+        coverage=tail['reading_state']['document_coverage']['documents'][0]
+        self.assertEqual(coverage['delivered_characters'],2400)
+        self.assertEqual(coverage['current_input'],'part')
+        self.assertEqual(tail['reading_state']['navigation'][0]['first_undelivered']['start'],2400)
+        self.assertEqual(info['request_characters'],len(json.dumps({'messages':current,'tools':[]},ensure_ascii=False)))
+        self.assertEqual(session.last_run['research'],saved)
+        # 扩展工具可以返回空对象；动态字段的预算不能多算分隔符而触发多余外置。
+        complete_tool(session,'extension_tool',{})
+        full,metrics=build_context(session.last_run['messages'],[],session)
+        exact,budgeted=build_context(session.last_run['messages'],[],session,metrics['request_characters'])
+        self.assertEqual(exact,full)
+        self.assertEqual(budgeted['request_characters'],metrics['request_characters'])
+
     def test_superseded_progress_is_historical_in_selected_input_and_after_reload(self):
         with tempfile.TemporaryDirectory() as directory:
             session=Session.create(Path(directory))
@@ -35,7 +74,8 @@ class ProgressUpdateTests(unittest.TestCase):
                 self.assertIn('本任务',states[0]['notice'])
                 self.assertIn('第 2 版',states[0]['notice'])
                 self.assertEqual(states[0]['state'],first['state'])
-                self.assertEqual(states[0]['navigation'],first['navigation'])
+                self.assertNotIn('navigation',states[0])
+                self.assertEqual(states[0]['state']['read_targets'],first['state']['read_targets'])
                 self.assertEqual(states[1]['state'],latest['state'])
                 self.assertEqual(before,json.dumps(active.records,ensure_ascii=False))
                 self.assertEqual(info['request_characters'],len(json.dumps({'messages':selected,'tools':[]},ensure_ascii=False)))
@@ -123,8 +163,9 @@ class ProgressUpdateTests(unittest.TestCase):
         self.assertEqual(coverage['used_by'],['finding-1'])
         self.assertEqual(coverage['ever_delivered'],'part')
         self.assertEqual(coverage['delivered_characters'],page['end'])
-        selected,info=build_context(session.last_run['messages'],[],session,120000,compact=True)
-        current=json.loads(selected[-1]['content'])['document_coverage']['documents'][0]
+        selected,info=build_context(session.last_run['messages'],[],session,120000,
+                                    message_start=len(session.last_run['messages'])-2)
+        current=json.loads(selected[-1]['content'])['reading_state']['document_coverage']['documents'][0]
         self.assertEqual(current['ever_delivered'],'part')
         self.assertEqual(current['current_input'],'none')
         self.assertEqual(info['request_characters'],len(json.dumps({'messages':selected,'tools':[]},ensure_ascii=False)))
@@ -208,7 +249,7 @@ class ProgressUpdateTests(unittest.TestCase):
             self.assertEqual(saved['reference']['end']-saved['reference']['start'],len(quote))
             selected,info=build_context(session.last_run['messages'],[],session,120000,compact=True)
             current=json.loads(selected[-1]['content'])
-            self.assertEqual(current['document_coverage']['documents'][0]['current_input'],'part')
+            self.assertEqual(current['reading_state']['document_coverage']['documents'][0]['current_input'],'part')
             self.assertIn(quote,selected[-1]['content'])
             self.assertEqual(info['request_characters'],len(json.dumps({'messages':selected,'tools':[]},ensure_ascii=False)))
             self.assertEqual(Session.load(session.path).last_run['research'],result)
@@ -297,8 +338,7 @@ class ProgressUpdateTests(unittest.TestCase):
         complete_tool(session, 'read_section', read)
         deliver(session)
         selected, _ = build_context(session.last_run['messages'], [], session)
-        latest = next(json.loads(m['content']) for m in selected if m['role']=='tool'
-                      and json.loads(m['content']).get('content_kind')=='research_state')
+        latest = next(json.loads(m['content'])['reading_state'] for m in reversed(selected) if m['role']=='tool')
         self.assertEqual(latest['navigation'][0]['ever_delivered'], 'full')
         self.assertEqual(latest['navigation'][0]['current_input'], 'full')
         self.assertEqual(result['navigation'][0]['ever_delivered'], 'none', '原记录不可被实时呈现修改')
@@ -372,8 +412,7 @@ class ProgressUpdateTests(unittest.TestCase):
         selected,info=build_context(session.last_run['messages'],[],session,9000)
         self.assertEqual(info['request_characters'],len(json.dumps({'messages':selected,'tools':[]},ensure_ascii=False)))
         self.assertLessEqual(info['request_characters'],9000)
-        progress=next(json.loads(m['content']) for m in selected if m['role']=='tool'
-                      and json.loads(m['content']).get('content_kind')=='research_state')
+        progress=json.loads(selected[-1]['content'])['reading_state']
         self.assertEqual(progress['navigation'][0]['ever_delivered'],'none')
         self.assertEqual(progress['navigation'][0]['current_input'],'part')
 

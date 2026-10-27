@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import re
+from .text_windows import find_window, clip_match
 
 
 READ_CHARS = 6000
@@ -12,6 +13,7 @@ INTRO_CHARS = 1800
 SNIPPET_CHARS = 1200
 INDEX_SIZE = 10
 OUTLINE_SIZE = 20
+FIND_CONTEXT_CHARS = 2000
 DOCUMENT_OPERATIONS = {'tavily_search', 'read_page', 'list_documents',
                        'find_in_documents', 'read_document', 'read_section'}
 _PROTOCOL_FIELDS = {'operation', 'status', 'content_kind', 'error_code', 'reason_code',
@@ -731,18 +733,30 @@ class Documents:
                                                doc_offset=index, position=found)
                     break
                 end = found + len(query)
-                section = next((s for s in reversed(doc.sections) if s['start'] <= found < s['end']), None)
-                left, right = max(0, found-150), min(len(doc.content), end+250)
+                section = next((s for s in reversed(doc.sections) if s['start'] <= found and end <= s['end']), None)
+                # 小节目录的父范围包含子节；查找补邻段应在下一个标题前停止。
+                lower = max((s['start'] for s in doc.sections if s['start'] <= found), default=0)
+                upper = min((s['start'] for s in doc.sections if s['start'] >= end), default=len(doc.content))
+                left, right, target_start, target_end = find_window(
+                    doc.content, found, end, lower, upper, FIND_CONTEXT_CHARS)
                 rows.append({**self._summary(doc), 'match_ref': f'{doc.id}@{found}-{end}',
                              'match_range': {'start': found, 'end': end},
                              'start': left, 'end': right, 'content': doc.content[left:right],
                              'context_start': left, 'context_end': right,
+                             'target_start': target_start, 'target_end': target_end,
+                             'complete': left == target_start and right == target_end,
+                             'truncated': left > target_start or right < target_end,
+                             'not_displayed_before': left-target_start,
+                             'remaining_characters': target_end-right,
                              'reference': self._reference(doc, left, right),
                              'evidence_ref': f'{doc.id}@{left}-{right}',
                              'read_action': {'tool': 'read_document', 'arguments': {
                                  'document_id': f'{doc.id}@{found}-{end}'}},
+                             'read_context_action': {'tool': 'read_document', 'arguments': {
+                                 'document_id': f'{doc.id}@{target_start}-{target_end}', 'view': 'reference'}},
                              'section_ref': section['section_ref'] if section else None})
-                position = end
+                # 同一已交付窗口内的重复命中无需再次返回正文；跨窗口命中仍可找到。
+                position = max(end, right-len(query)+1)
             if next_cursor:
                 break
             position = 0
@@ -752,7 +766,10 @@ class Documents:
                 'continuation': {'tool': 'find_in_documents', 'arguments': {
                     'query': query, 'cursor': next_cursor,
                     **({'document_id': document_id} if document_id is not None else {})}} if next_cursor else None,
-                'notice': '这是已保存文本的字面匹配；未命中不证明页面或现实中不存在相关事实。'}
+                'notice': '这是已保存文本的字面匹配，同一返回窗口内重复命中合并为一个入口。'
+                          'complete 只说明所选文本块窗口已交付，不保证整页或所有条件已覆盖。'
+                          'truncated 时用 read_context_action 读取完整目标，也可按 section_ref 读小节；'
+                          '未命中不证明页面或现实中不存在相关事实。'}
 
 
 _IDENTITY = ('source_id', 'document_id', 'title', 'url', 'requested_url',
@@ -822,11 +839,8 @@ class _DeliveryView:
         if self.operation == 'find_in_documents':
             match = row['match_range']
             # 命中词不拆开：分配不足时仅保留定位信息，不伪造已读正文引用。
-            if share < match['end']-match['start']:
-                left = right = match['start']
-            else:
-                before = min(match['start']-start, (share-(match['end']-match['start']))//2)
-                left, right = match['start']-before, min(end, match['start']-before+share)
+            left, right = clip_match(self.documents._document(row['document_id']).content,
+                                     start, end, match['start'], match['end'], share)
             result.update(match_range=deepcopy(match), match_ref=row['match_ref'],
                           section_ref=row.get('section_ref'),
                           read_action=deepcopy(row['read_action']))
@@ -837,12 +851,13 @@ class _DeliveryView:
         result.update(content=content, start=left, end=right,
                       context_start=left, context_end=right,
                       truncated=left > start or right < end or row.get('truncated', False))
-        target_end = end if self.operation == 'find_in_documents' else len(doc.content)
-        result.update(target_start=start, target_end=target_end,
-                      complete=left == start and right == target_end,
-                      remaining_characters=target_end-right, not_displayed_before=left-start)
+        target_start = row.get('target_start', start) if self.operation == 'find_in_documents' else start
+        target_end = row.get('target_end', end) if self.operation == 'find_in_documents' else len(doc.content)
+        result.update(target_start=target_start, target_end=target_end,
+                      complete=left == target_start and right == target_end,
+                      remaining_characters=target_end-right, not_displayed_before=left-target_start)
         if self.operation == 'find_in_documents':
-            context_ref = f'{doc.id}@{start}-{end}'
+            context_ref = f'{doc.id}@{target_start}-{target_end}'
             result['read_context_action'] = {'tool': 'read_document', 'arguments': {
                 'document_id': context_ref, 'view': 'reference'}}
         else:

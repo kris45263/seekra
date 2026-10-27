@@ -142,7 +142,7 @@ class AgentDisplay:
             if details['offloaded']:
                 text += ' 部分原文已转为历史记录，可按需读取。'
             if details.get('compacted_messages'):
-                text += f" {details['compacted_messages']} 条较早决策消息已依据进展检查点移出。"
+                text += f" {details['compacted_messages']} 条较早消息已移出当前工作窗口。"
             if details.get('checkpoint_requested'):
                 text += ' 已请求保存研究进展，以便继续整理上下文。'
         elif event == 'tool_call':

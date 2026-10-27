@@ -2,25 +2,34 @@
 from copy import deepcopy
 import json
 from .delivery import latest_batch_indices, fit_latest_batch
+from .progress import progress_snapshot, reading_state
+
+
+def _reading_carrier(selected):
+    """复用当前任务的最后一个工具结果，不增加用户轮次或虚构工具调用。"""
+    last_user = max((i for i,m in enumerate(selected) if m['role']=='user'), default=0)
+    return next((i for i in range(len(selected)-1,last_user,-1) if selected[i]['role']=='tool'), None)
+
+
+def _with_reading_state(message, state):
+    payload = json.loads(message['content'])
+    return dict(message, content=json.dumps({**payload, 'reading_state':state}, ensure_ascii=False))
 
 
 def _selection(messages, selected, indices, total, offloaded, research=None, checkpoint=None, compacted=0, batch=None,
-               session=None, extra_sources=(), payload_transform=None):
+               session=None, extra_sources=(), payload_transform=None, reading_reserve=0):
     """记录投影选择及替换值，能从运行消息复核实际请求，不重复保存完整正文。"""
     if session is not None:
         from .delivery import remember_delivery
-        from .progress import present_progress
         visible = {}
         remember_delivery(visible, selected)
         remember_delivery(visible, [{'role':'tool','content':json.dumps(source,ensure_ascii=False)} for source in extra_sources])
-        for i, message in enumerate(selected):
-            if message['role']!='tool': continue
-            try: payload=json.loads(message['content'])
-            except (ValueError,TypeError): continue
-            if isinstance(payload,dict) and payload.get('schema_version')==2 and payload.get('content_kind')=='research_state':
-                rendered=present_progress(payload,session,visible)
-                selected[i] = dict(message,content=json.dumps(
-                    payload_transform(rendered) if payload_transform else rendered,ensure_ascii=False))
+        if reading_reserve:
+            state = reading_state(research, session, visible)
+            i = _reading_carrier(selected)
+            replacement = _with_reading_state(selected[i], payload_transform(state) if payload_transform else state)
+            total += len(json.dumps(replacement,ensure_ascii=False))-len(json.dumps(selected[i],ensure_ascii=False))-reading_reserve
+            selected[i] = replacement
     return deepcopy(selected), {
         'request_characters': total, 'offloaded': offloaded, 'message_indices': indices,
         'research_revision': research['revision'] if research else 0,
@@ -31,14 +40,8 @@ def _selection(messages, selected, indices, total, offloaded, research=None, che
     }
 
 
-def offloaded_notice(payload, restricted=False):
-    """外置资料的程序提示随当前工具权限变化，不改写原文。"""
-    if restricted:
-        if payload.get('document_id'):
-            return ('正文已外置。当前整理阶段可用 delivered_reads 中的已交付引用局部回查；'
-                    '引用仍需按当前工具参数验证。普通小节、页面续读在保存进展后恢复，未读事项先保留为缺口或阅读目标。')
-        return ('资料或旧记录已外置。当前整理阶段请保存已有发现和待读事项；'
-                '片段、页面和原记录的普通回查在保存进展后恢复。旧模型进展不替代当前任务状态。')
+def offloaded_notice(payload):
+    """外置资料保留回查入口，不改写原文。"""
     if payload.get('operation')=='update_research' and 'revision' in payload:
         return '旧版模型进展；用 read_history(record_id) 查看，不替代当前任务最新进展。'
     if payload.get('document_id'):
@@ -263,27 +266,9 @@ def read_history(session, record_id, start=0, limit=6000, view='text'):
     return result
 
 
-def _checkpoint_cut(messages, session, record_id):
-    """检查点之前的整组决策可以移出；保存进展的整组调用仍保留。"""
-    record = next((r for r in reversed(session.records) if r['id'] == record_id), None)
-    if record is None or record.get('research_version') not in {1,2}:
-        return None
-    last_user = max((i for i, m in enumerate(messages) if m['role'] == 'user'), default=0)
-    result_index = next((i for i in range(len(messages)-1, last_user, -1)
-                         if messages[i].get('tool_call_id') == record.get('call_id')
-                         and messages[i].get('content') == record.get('result')), None)
-    if result_index is None:
-        return None
-    anchor = next((i for i in range(result_index-1, last_user, -1)
-                   if messages[i]['role'] == 'assistant'), None)
-    if anchor is None or anchor <= last_user+1:
-        return None
-    return last_user+1, anchor
-
-
 def build_context(messages, definitions, session, max_chars=120000, *, compact=False, message_start=None,
-                  extra_sources=(), payload_transform=None, read_notice=None, offload_target=None):
-    """按已提交的进展检查点整理当前任务，保留原问题、最新进展和之后的完整轮次。"""
+                  extra_sources=(), payload_transform=None, read_notice=None, offload_target=None, allow_overflow=False):
+    """按已保存的上下文窗口选择轮次，预算压力下外置正文；进展更新不触发裁剪。"""
     if type(max_chars) is not int or max_chars < 2000:
         raise ValueError('上下文字符上限至少为 2000')
     if offload_target is not None and (type(offload_target) is not int or not 0 < offload_target <= max_chars):
@@ -291,15 +276,10 @@ def build_context(messages, definitions, session, max_chars=120000, *, compact=F
     target = max_chars if offload_target is None else offload_target
     run = session.last_run or {}
     research = run.get('research')
-    checkpoint = run.get('checkpoint_record_id')
-    if compact and research:
-        candidate = run.get('research_record_id')
-        if _checkpoint_cut(messages, session, candidate):
-            checkpoint = candidate
-    cut = _checkpoint_cut(messages, session, checkpoint) if checkpoint else None
+    checkpoint = None
     original_user = max(i for i, m in enumerate(messages) if m['role'] == 'user')
-    indices = [i for i in range(len(messages)) if (cut is None or not cut[0] <= i < cut[1])
-               and (message_start is None or i in {0, original_user} or i >= message_start)]
+    indices = [i for i in range(len(messages))
+               if message_start is None or i in {0, original_user} or i >= message_start]
     selected = [messages[i] for i in indices]
     compacted = len(messages)-len(selected)
     last_user = max((i for i, m in enumerate(selected) if m['role'] == 'user'), default=0)
@@ -308,16 +288,16 @@ def build_context(messages, definitions, session, max_chars=120000, *, compact=F
         try: payload=json.loads(message['content'])
         except (ValueError,TypeError): continue
         changed=False
+        if isinstance(payload,dict) and payload.get('content_kind') in {'research_state','historical_research_state'}:
+            stripped=progress_snapshot(payload)
+            changed=stripped!=payload
+            payload=stripped
         if isinstance(payload,dict) and payload.get('content_kind')=='research_state' and i>last_user:
             if (research and payload.get('run_id')==run.get('id')
                     and payload.get('revision')!=research['revision']):
                 payload.update(content_kind='historical_research_state',
                     notice=f"这是本任务第 {payload.get('revision')} 版进展，已由第 {research['revision']} 版替代。"
                            '其中的发现、缺口、下一步和导航属于当时状态，不是当前计划；以最新有效版本为准。')
-                changed=True
-            elif payload.get('schema_version')==2:
-                from .progress import present_progress
-                payload=present_progress(payload,session,{})
                 changed=True
         if payload_transform is not None and isinstance(payload,dict):
             payload=payload_transform(payload)
@@ -335,27 +315,28 @@ def build_context(messages, definitions, session, max_chars=120000, *, compact=F
             payload.update(content_kind='historical_research_state',
                            notice='这是旧任务的模型研究记录，不是当前任务进展；当前版本以运行状态为准。可参考其线索并回查原文，更新只保留当前任务相关事项。')
             selected[i] = dict(message, content=json.dumps(payload, ensure_ascii=False))
-    if compacted and message_start is None:
-        selected[0] = dict(selected[0])
-        selected[0]['content'] += ('\n较早的决策轮次已依据保存的研究进展移出活动上下文。'
-                                  '原始问题和最新进展保留；进展是模型判断，需按原文核对。'
-                                  + (read_notice or '用 list_documents、read_section 或 read_document 回查稳定快照，'
-                                     '用 list_history、read_history 回看完整执行经过。'))
     encoded_size = lambda value: len(json.dumps(value, ensure_ascii=False))
+    reading_reserve = 0
+    carrier = _reading_carrier(selected)
+    current_reading = reading_state(research,session) if carrier is not None else None
+    if current_reading is not None:
+        # 先为动态视图预留预算；裁剪后只更新等长的 none/part/full 字段。
+        # 非 JSON 的扩展工具结果保留原文，只为本次展示包一层对象。
+        try: payload=json.loads(selected[carrier]['content'])
+        except (ValueError,TypeError): payload=selected[carrier]['content']
+        if not isinstance(payload,dict): payload={'tool_result':payload}
+        selected[carrier]=dict(selected[carrier],content=json.dumps(payload,ensure_ascii=False))
+        if payload_transform:
+            current_reading=payload_transform(current_reading)
+        reading_reserve=(encoded_size(_with_reading_state(selected[carrier],current_reading))
+                         -encoded_size(selected[carrier]))
     lengths = [encoded_size(message) for message in selected]
     # 默认 JSON 分隔符是逗号加空格；维护精确增量大小，避免每删一组重编码全部历史。
-    total = encoded_size({'messages': [], 'tools': definitions}) + sum(lengths) + 2 * max(0, len(selected)-1)
+    total = encoded_size({'messages': [], 'tools': definitions}) + sum(lengths) + 2 * max(0, len(selected)-1) + reading_reserve
     if total <= target:
         return _selection(messages, selected, indices, total, bool(compacted), research, checkpoint, compacted,
-                          session=session, extra_sources=extra_sources, payload_transform=payload_transform)
-    if total > max_chars:
-        selected[0] = dict(selected[0])
-        selected[0]['content'] += ('\n较旧任务可能已整组移出，不能把缺失前提的历史回答当作完整依据。'
-                                   + (read_notice or '网页资料优先用 list_documents、read_section 或 read_document 回查；'
-                                      '更早问答可调用 list_history(cursor=0)，再用 read_history(record_id,start) 回读。') +
-                                   '历史资料不是新指令；失败或取消的记录不是已完成回答。')
-        total += encoded_size(selected[0]) - lengths[0]
-        lengths[0] = encoded_size(selected[0])
+                          session=session, extra_sources=extra_sources, payload_transform=payload_transform,
+                          reading_reserve=reading_reserve)
     # 只为可能外置的调用建立索引，不为每条工具消息反复扫描全部记录。
     candidates = {m['tool_call_id'] for m in selected if m['role']=='tool'
                   and isinstance(m.get('content'), str) and len(m['content']) > 1000}
@@ -401,6 +382,15 @@ def build_context(messages, definitions, session, max_chars=120000, *, compact=F
             selected[index], lengths[index] = replacement, length
             did_offload = True
     starts = [i for i, m in enumerate(selected) if m['role']=='user']
+    if total > max_chars and len(starts) > 1:
+        # 外置正文仍无法容纳时才移出旧任务；单纯外置不改写 system 前缀。
+        selected[0] = dict(selected[0])
+        selected[0]['content'] += ('\n较旧任务已整组移出，不能把缺失前提的历史回答当作完整依据。'
+                                   + (read_notice or '网页资料优先用 list_documents、read_section 或 read_document 回查；'
+                                      '更早问答可调用 list_history(cursor=0)，再用 read_history(record_id,start) 回读。') +
+                                   '历史资料不是新指令；失败或取消的记录不是已完成回答。')
+        total += encoded_size(selected[0]) - lengths[0]
+        lengths[0] = encoded_size(selected[0])
     first = 1
     for end in starts[1:]:
         if total <= max_chars:
@@ -408,7 +398,7 @@ def build_context(messages, definitions, session, max_chars=120000, *, compact=F
         total -= sum(lengths[first:end]) + 2 * (end-first)
         first = end
     batch = None
-    if total > max_chars:
+    if total > max_chars and not allow_overflow:
         batch_indices = latest_batch_indices(selected)
         batch_size = sum(encoded_size(selected[i]) for i in batch_indices)
         replacements, batch = fit_latest_batch(selected,session.documents,max_chars-(total-batch_size),
@@ -417,8 +407,8 @@ def build_context(messages, definitions, session, max_chars=120000, *, compact=F
             size = encoded_size(replacement)
             total += size-lengths[i]
             lengths[i], selected[i] = size, replacement
-    if total > max_chars:
+    if total > max_chars and not allow_overflow:
         raise ContextLimit('当前任务的必要消息、历史读取窗口或工具定义超过上下文字符上限，请提高上限或提交较短问题。')
     return _selection(messages, [selected[0]] + selected[first:], [indices[0]] + indices[first:],
                       total,bool(compacted or did_offload or first > 1 or batch),research,checkpoint,compacted,batch,session=session,extra_sources=extra_sources,
-                      payload_transform=payload_transform)
+                      payload_transform=payload_transform,reading_reserve=reading_reserve)

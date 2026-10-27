@@ -179,6 +179,25 @@ def present_progress(result, session, visible=None):
             'navigation_notice':'程序生成阅读入口；ever_delivered 为历史累计交付，current_input 为本次输入，none/part/full 表示覆盖范围。first_undelivered 提供目标内最早尚未交付的范围及阅读动作；根据任务与 purpose 判断是否需要继续，交付完整不证明结论充分。'}
 
 
+_READING_FIELDS = ('navigation', 'document_coverage', 'coverage_notice', 'navigation_notice')
+
+
+def progress_snapshot(result):
+    """进展正文只保留保存时的状态；动态交付信息由请求末端提供。"""
+    if result.get('schema_version') != 2:
+        return result
+    return {key:value for key,value in result.items() if key not in _READING_FIELDS}
+
+
+def reading_state(result, session, visible=None):
+    """当前阅读视图独立于进展保存事件，仍使用同一导航与交付规则。"""
+    if not result or result.get('schema_version') != 2:
+        return None
+    rendered = present_progress(result, session, visible)
+    return {'run_id':result['run_id'], 'revision':result['revision'],
+            **{key:rendered[key] for key in _READING_FIELDS}}
+
+
 def document_coverage(state,session,visible=None,nav=()):
     """正在引用和选择的资料保持交付概况，不依赖阅读目标继续存在。"""
     owners={}

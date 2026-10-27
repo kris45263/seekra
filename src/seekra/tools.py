@@ -195,7 +195,7 @@ def default_registry(client, api_key, session, structured=False, definitions=Non
         ('read_section', '读取目录给出的 section_ref，无需指定字符数。程序按小节边界分页；按本工具结果的 continuation 继续同一节。complete 只说明本次是否包含整节；evidence_ref 可直接用于保存正文引用。',
          {'section_ref': {'type': 'string'}, 'cursor': {'type': 'string'}}, ['section_ref'],
          lambda args: session.documents.read_section(**args)),
-        ('find_in_documents', '在已保存文本中精确查找关键词，区分大小写，不联网。match_range/match_ref 只定位关键词；content 与 start/end 是实际返回的附近正文，evidence_ref 引用这段正文。可用 read_action 展开阅读。未命中仅限于已查文本，可换词、换语言或继续阅读。',
+        ('find_in_documents', '在已保存文本中精确查找关键词，区分大小写，不联网。每个窗口最多2000字符，优先完整文本块和同节相邻段落；窗口内重复命中合并。match_range/match_ref 只定位代表命中；content 与 start/end 是实际正文，evidence_ref 只引用这段。complete 仅表示目标窗口完整，不保证整页条件已覆盖。truncated 时用 read_context_action 读取完整目标，或按 section_ref 继续读小节；read_action 可展开命中周边。未命中仅限于已查文本。',
          {'query': {'type': 'string'}, 'document_id': {'type': 'string'}, 'cursor': {'type': 'string'}}, ['query'],
          lambda args: session.documents.find_in_documents(**args)),
         ('read_document', '本地读取已保存资料。核对引用：document_id 填 evidence_ref，view=reference 只返回该引用范围，不扩展，程序分页。展开周边：view=text（默认），把 match_ref/evidence_ref 填入 document_id，返回附近正文及新引用；周边正文不属于原引用。view=outline 读目录。按 continuation 续读；start/limit 仅用于 text 模式精确读取。读取搜索片段不会自动取得网页。',

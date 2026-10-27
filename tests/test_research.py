@@ -36,7 +36,7 @@ def state(reference, revision=0):
 
 def pressure_budget(client, session, question):
     """实际初始协议之上留正文和旧轮次空间，再由交互触发80%阈值。"""
-    messages=[{'role':'system','content':system_prompt(1)}, {'role':'user','content':question}]
+    messages=[{'role':'system','content':system_prompt()}, {'role':'user','content':question}]
     size=len(json.dumps({'messages':messages,'tools':default_registry(client,'fake',session).definitions},
                         ensure_ascii=False))
     return (size+6000)*5//4
@@ -314,57 +314,45 @@ class ResearchTests(unittest.TestCase):
                                    tavily_api_key='tv-key', session=restored, resume=True)
             self.assertIn('期限仍待核实', answer)
 
-    def test_pressure_requests_progress_before_compaction_and_resumes_checkpoint(self):
+    def test_pressure_compacts_without_progress_and_resumes_reading_original(self):
         with tempfile.TemporaryDirectory() as directory:
             session = Session.create(Path(directory))
-            page = None
-            attempts = 0
-            requests = []
+            requests, summaries = [], []
             def handler(request):
-                nonlocal page, attempts
                 if request.url.path == '/extract':
                     return httpx.Response(200, json={'results': [{'url': URL,
                         'raw_content': '# Guide\nPro license required.\n'}], 'failed_results': []})
                 body = json.loads(request.content)
+                if not body.get('tools'):
+                    summaries.append(body)
+                    return reply('已读 S1-P1，指南要求 Pro 许可证；原问题仍需完成。')
                 requests.append(body)
-                messages = body['messages']
                 if len(requests) == 1:
                     return reply(calls=[call('read_page', {'url': URL}, 'page')])
-                if page is None:
-                    page = json.loads(messages[-1]['content'])
-                    self.assertIn('evidence_ref', page)
-                progress = [json.loads(m['content']) for m in messages if m['role'] == 'tool'
-                            and json.loads(m['content']).get('content_kind') == 'research_state']
-                if progress:
-                    self.assertNotIn('旧的调查步骤', str(messages))
-                    self.assertIn('较早的决策轮次', messages[0]['content'])
-                    raise httpx.ConnectError('检查点后断网')
-                if '上下文接近上限' in messages[0]['content']:
-                    attempts += 1
-                    args = state(page['evidence_ref'])
-                    if attempts == 1:
-                        args['findings'][0]['references'] = [f"{page['document_id']}@0-9999"]
-                    return reply(calls=[call('update_research', args, f'update-{attempts}')])
+                if '[harness 提供的恢复资料]' in str(body['messages']):
+                    raise httpx.ConnectError('压缩提交后断网')
                 return reply('旧的调查步骤。' * 180,
                              calls=[call('list_documents', {}, f'index-{len(requests)}')])
             with httpx.Client(transport=httpx.MockTransport(handler)) as client, self.assertRaises(httpx.ConnectError):
                 budget=pressure_budget(client,session,'核实许可证条件')
                 run_agent('核实许可证条件', client=client, model='test', deepseek_api_key='ds',
                           tavily_api_key='tv', session=session, max_context_chars=budget)
-            self.assertEqual(attempts, 2, '失败更新必须重试，不能先移出旧轮次')
+            self.assertEqual(len(summaries), 1)
             restored = Session.load(session.path)
-            self.assertIsNotNone(restored.last_run.get('checkpoint_record_id'))
-            self.assertEqual(restored.last_run['research']['revision'], 1)
-            self.assertIn('旧的调查步骤', str(restored.records), '完整原过程继续保存')
+            self.assertIsNone(restored.last_run['research'])
+            self.assertEqual(restored.last_run['provider_window']['reason'], 'compaction')
+            self.assertIn('旧的调查步骤', str(restored.records))
             calls = 0
             def resume(request):
                 nonlocal calls
                 self.assertNotEqual(request.url.host, 'api.tavily.com')
-                messages = json.loads(request.content)['messages']
-                self.assertNotIn('旧的调查步骤', str(messages))
+                body = json.loads(request.content)
+                messages = body['messages']
+                self.assertIn('tavily_search', {d['function']['name'] for d in body['tools']})
+                self.assertIn('指南要求 Pro', str(messages))
                 calls += 1
                 if calls == 1:
-                    return reply(calls=[call('read_document', {'document_id': page['document_id']}, 'back')])
+                    return reply(calls=[call('read_document', {'document_id': 'S1-P1'}, 'back')])
                 self.assertIn('Pro license required', messages[-1]['content'])
                 return reply('有原文支持：需要 Pro 许可证。')
             with httpx.Client(transport=httpx.MockTransport(resume)) as client:

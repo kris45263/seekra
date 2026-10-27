@@ -378,6 +378,7 @@ class RuntimeEdgeTests(unittest.TestCase):
         selected,info=build_context(messages,[],s,max_chars=3000)
         self.assertTrue(info['offloaded'])
         self.assertEqual([m['content'] for m in selected if m['role']=='user'],['旧问题','当前问题'])
+        self.assertEqual(selected[0], messages[0], '仅外置正文且保留所有任务时，不改写 system')
         self.assertEqual(json.loads(selected[-1]['content'])['record_id'],'1')
         with httpx.Client() as client:
             registry=default_registry(client,'unused',s)
@@ -385,6 +386,21 @@ class RuntimeEdgeTests(unittest.TestCase):
                 'arguments':'{"record_id":"1","limit":24000}'}},{},{}))
         self.assertIn(original, result['content'])
         self.assertEqual(messages[-1]['content'],original)
+
+    def test_dropped_old_task_keeps_notice_and_exact_budget(self):
+        messages = [{'role':'system','content':'规则'}, {'role':'user','content':'旧问题'},
+                    {'role':'assistant','content':'旧回答。'*1500},
+                    {'role':'user','content':'当前问题'}]
+        original = deepcopy(messages)
+        selected, info = build_context(messages, [], Session(), max_chars=2000)
+        self.assertEqual(info['message_indices'], [0, 3])
+        self.assertEqual(selected[-1], messages[-1])
+        self.assertIn('较旧任务', selected[0]['content'])
+        self.assertIn('read_history', selected[0]['content'])
+        self.assertEqual(info['request_characters'], len(json.dumps(
+            {'messages':selected, 'tools':[]}, ensure_ascii=False)))
+        self.assertLessEqual(info['request_characters'], 2000)
+        self.assertEqual(messages, original)
 
     def test_latest_history_read_reaches_next_model_context(self):
         session = Session()

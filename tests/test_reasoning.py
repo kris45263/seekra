@@ -85,8 +85,8 @@ class ReasoningTests(unittest.TestCase):
         action=section['read_action']
         self.assertIn('Guest excluded.',session.documents.read_section(**action['arguments'])['content'])
         marked=present_actions(snapshot,{'base_revision':0})
-        self.assertEqual(marked['documents']['documents'][0]['outline_action']['availability'],'after_progress')
-        self.assertEqual(marked['documents']['documents'][0]['outline_preview'][-1]['read_action']['availability'],'after_progress')
+        self.assertNotIn('availability',marked['documents']['documents'][0]['outline_action'])
+        self.assertNotIn('availability',marked['documents']['documents'][0]['outline_preview'][-1]['read_action'])
         delivered={};remember_delivery(delivered,[{'role':'tool','content':json.dumps(snapshot['documents'])}])
         self.assertEqual(delivered,{},'目录和标题不作为正文交付')
 
@@ -392,7 +392,29 @@ class ReasoningTests(unittest.TestCase):
         self.assertEqual(snapshot,original)
         self.assertEqual(info['request_characters'],len(json.dumps({'messages':messages,'tools':tools},ensure_ascii=False)))
 
-    def test_recovery_actions_follow_current_progress_stage_within_budget(self):
+        # 恢复后已有新的工具结果时，动态状态移到末端；后续交付不改写早期恢复资料。
+        complete_tool(session,'read_document',session.documents.read_document(
+            f"{page['document_id']}@{page['end']}-2400",view='reference'))
+        first,_,first_info,_=prepare_model_context(session.last_run['messages'],[],session,120000,
+                                                   DeepSeekModel(None,'test','fake'))
+        first_user=next(m for m in first if m['role']=='user')
+        recovered=json.loads(first_user['content'].split('[harness 提供的恢复资料]\n')[1])
+        self.assertNotIn('navigation',recovered['research'])
+        session.record('context_selected',run_id=session.last_run['id'],**first_info)
+        session.record('model_started',run_id=session.last_run['id'],round=session.last_run['calls']+1,
+                       system=session.last_run['messages'][0]['content'])
+        complete_tool(session,'read_document',session.documents.read_document(
+            f"{page['document_id']}@2400-3000",view='reference'))
+        second,_,second_info,_=prepare_model_context(session.last_run['messages'],[],session,120000,
+                                                     DeepSeekModel(None,'test','fake'))
+        self.assertEqual(next(m for m in second if m['role']=='user'),first_user)
+        reading=json.loads(second[-1]['content'])['reading_state']
+        self.assertEqual(reading['navigation'][0]['first_undelivered']['start'],2400)
+        self.assertEqual(reading['document_coverage']['documents'][0]['current_input'],'part')
+        self.assertEqual(snapshot,original)
+        self.assertEqual(second_info['request_characters'],len(json.dumps({'messages':second,'tools':[]},ensure_ascii=False)))
+
+    def test_recovery_actions_remain_available_within_budget(self):
         from copy import deepcopy
         from seekra.models import DeepSeekModel
         from seekra.provider_context import _recovery_snapshot, prepare_model_context
@@ -415,7 +437,7 @@ class ReasoningTests(unittest.TestCase):
                                                    DeepSeekModel(None,'test','fake'))
         user=next(m for m in messages if m['role']=='user')
         recovered=json.loads(user['content'].split('[harness 提供的恢复资料]\n')[1])
-        self.assertEqual(recovered['research']['navigation'][0]['read_action']['availability'],'after_progress')
+        self.assertNotIn('availability',recovered['research']['navigation'][0]['read_action'])
         local=recovered['sources'][0]
         self.assertEqual(local['continuation'],None)
         self.assertEqual(snapshot,original)

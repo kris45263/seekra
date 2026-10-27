@@ -73,7 +73,7 @@ class SessionTests(unittest.TestCase):
             self.assertFalse(any(record['kind']=='model_completed' for record in session.records))
 
     def test_followup_keeps_tools_and_answer_without_duplicates(self):
-        """第二次输入收到完整旧历史，并更新唯一系统提示词。"""
+        """第二次输入收到完整旧历史，唯一系统提示更新日期而不注入调用计数。"""
         def first(request):
             if request.url.host == "api.tavily.com":
                 return httpx.Response(200, json={"results": [{"title": "来源",
@@ -91,7 +91,7 @@ class SessionTests(unittest.TestCase):
             self.assertEqual(messages[-1]["content"], "第一项呢？")
             self.assertEqual(sum(m["role"] == "system" for m in messages), 1)
             self.assertIn("2030-01-02", messages[0]["content"])
-            self.assertIn("1 次", messages[0]["content"])
+            self.assertNotIn("次模型调用", messages[0]["content"])
             self.assertEqual(self.session.messages, saved)
             return reply("功能 A 的详情")
         with patch("seekra.agent.date") as today:
@@ -99,6 +99,7 @@ class SessionTests(unittest.TestCase):
             self.assertEqual(self.ask("第一项呢？", second), "功能 A 的详情")
         self.assertEqual(len(self.session.messages), 7)
         self.assertEqual(self.session.messages[-1]["content"], "功能 A 的详情")
+        self.assertEqual(self.session.last_run['calls'], 1)
 
     def test_failed_or_interrupted_turn_leaves_previous_history_unchanged(self):
         """工具后失败、截断、空答案和中断均不保存临时消息。"""

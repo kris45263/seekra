@@ -183,7 +183,7 @@ def tavily_search(query: str, *, client: httpx.Client, api_key: str,
     if chunks_per_source is not None:
         parameters['chunks_per_source'] = chunks_per_source
     if domains:
-        parameters.update(include_domains=domains, include_domains_mode='filter')
+        parameters.update(include_domains=domains, include_domains_mode='restrict')
     try:
         raw = request_tavily('search', {'query': query, **parameters}, client=client, api_key=api_key, cancel=cancel)
         result = normalize_search_results(query, raw)

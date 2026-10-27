@@ -146,9 +146,9 @@ class AnswerSubmissionTests(unittest.TestCase):
         api.register_answer_tool(registry,session)
         session.last_run['config']['final_outputs']=registry.final_outputs
         session.last_run['progress_stage']={'base_revision':0}
-        from seekra.checkpoint import blocked_call,_tools
-        self.assertIsNone(blocked_call(call('submit_answer',{}),session))
-        self.assertIn('submit_answer',{d['function']['name'] for d in _tools(registry.definitions,registry.final_outputs)})
+        from seekra.checkpoint import prepare_context
+        _, tools, _, _ = prepare_context(session.last_run['messages'], registry.definitions, session, 120000)
+        self.assertIn('submit_answer', {d['function']['name'] for d in tools})
 
     def test_submitted_sources_have_local_readback_and_count_only_when_in_actual_input(self):
         api=self.answers();session=Session();page=add_page(session,'# Rules\n\nPro required.');deliver(session)
@@ -444,7 +444,7 @@ class AnswerSubmissionTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'recommendations\\[1\\].*关联'):
             api.compile_answer(session,draft)
 
-    def test_restricted_system_mentions_registered_final_submission_without_new_reads(self):
+    def test_budget_preparation_preserves_registered_final_tool_and_research_tools(self):
         api=self.answers();session=Session();begin(session)
         page=add_page(session,'# Rules\n\nPro required.');deliver(session)
         registry=default_registry(None,'fake',session);api.register_answer_tool(registry,session)
@@ -452,9 +452,8 @@ class AnswerSubmissionTests(unittest.TestCase):
         session.last_run['progress_stage']={'base_revision':0}
         from seekra.checkpoint import prepare_context
         messages,tools,info,system=prepare_context(session.last_run['messages'],registry.definitions,session,120000)
-        self.assertIn('submit_answer',system)
-        self.assertIn('单独',system)
-        self.assertEqual({t['function']['name'] for t in tools},{'update_research','read_document','submit_answer'})
+        self.assertEqual(tools, registry.definitions)
+        self.assertIsNone(info['progress_stage'])
         self.assertEqual(info['request_characters'],len(json.dumps({'messages':messages,'tools':tools},ensure_ascii=False)))
 
     def test_unknown_prerequisite_marks_candidate_but_not_investigation(self):

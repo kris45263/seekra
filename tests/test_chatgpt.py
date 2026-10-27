@@ -128,11 +128,13 @@ class ChatGPTTests(unittest.TestCase):
     def test_cli_uses_own_search_loop_without_deepseek_key(self):
         from seekra.cli import main
         requests=[]
+        payloads=[]
         def respond(request):
             requests.append(request.url.host)
             if request.url.host=='api.tavily.com':
                 return httpx.Response(200,json={'results':[{'url':'https://example.org/source','title':'Source','content':'Supported fact.'}]})
             data=json.loads(request.content)
+            payloads.append(data)
             if len(requests)==1:
                 output=[{'type':'function_call','call_id':'call_1','namespace':'seekra','name':'tavily_search',
                          'arguments':'{"query":"test"}','status':'completed'}]
@@ -155,6 +157,9 @@ class ChatGPTTests(unittest.TestCase):
             self.assertEqual(out.getvalue(),'Final answer\n')
             self.assertIn('本次 token：输入 40，输出 10',err.getvalue())
         self.assertEqual(requests,['api.openai.com','api.tavily.com','api.openai.com'])
+        self.assertEqual(payloads[0]['instructions'],payloads[1]['instructions'])
+        self.assertEqual(payloads[0]['tools'],payloads[1]['tools'])
+        self.assertEqual(payloads[0]['input'],payloads[1]['input'][:len(payloads[0]['input'])])
 
     def test_reload_rebuilds_without_persisting_encrypted_reasoning_or_repeating_tool(self):
         from seekra.session import Session

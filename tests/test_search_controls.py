@@ -30,7 +30,7 @@ class SearchControlTests(unittest.TestCase):
         self.assertEqual(seen[0]['max_results'], 6)
         self.assertEqual(seen[0]['chunks_per_source'], 1)
         self.assertEqual(seen[0]['include_domains'], ['api-docs.deepseek.com'])
-        self.assertEqual(seen[0]['include_domains_mode'], 'filter')
+        self.assertEqual(seen[0]['include_domains_mode'], 'restrict')
         self.assertEqual(result['search_parameters'], {k:v for k,v in seen[0].items() if k != 'query'})
         self.assertEqual(result['status'], 'empty')
 

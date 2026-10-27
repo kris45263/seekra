@@ -21,7 +21,7 @@ uv run seekra --repl
 |修改目标|主要模块|需要关注的行为|
 |---|---|---|
 |研究循环与任务结束|`agent.py`、`runtime.py`|请求历史、工具配对、取消、失败与完成状态|
-|上下文与恢复|`context.py`、`checkpoint.py`、`provider_context.py`|实际请求、阶段权限、检查点与续接缺失后的重建|
+|上下文与恢复|`context.py`、`checkpoint.py`、`compaction.py`、`provider_context.py`|实际请求、独立压缩提交、预算与续接缺失后的重建|
 |模型协议与授权|`models.py`、`deepseek.py`、`chatgpt.py`、`chatgpt_auth.py`|流结束校验、工具组装、连接释放、身份与令牌刷新|
 |工具与网络获取|`tools.py`、`retrieval.py`、`operations.py`|非法参数不联网、结果语义、失败原因与快照|
 |正文与进展|`documents.py`、`delivery.py`、`research.py`、`progress.py`|稳定引用、实际交付范围、进展版本与局部更新|

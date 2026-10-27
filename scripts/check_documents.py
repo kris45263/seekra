@@ -143,6 +143,30 @@ CASES = {
 }
 
 
+def capture_deepseek_request(request, session):
+    """按最近的开始记录区分研究与摘要；保存公开请求和实际发送的哈希。"""
+    payload = json.loads(request.content)
+    public = {**payload, 'messages': [{k: v for k, v in message.items() if k != 'reasoning_content'}
+                                    for message in payload['messages']]}
+    run_id = session.last_run['id']
+    started = next(r for r in reversed(session.records)
+                   if r.get('run_id') == run_id and r['kind'] in {'model_started', 'compaction_started'})
+    purpose = 'model' if started['kind'] == 'model_started' else 'compaction'
+    if purpose == 'model':
+        selection = next(r for r in reversed(session.records)
+                         if r.get('run_id') == run_id and r['kind'] == 'context_selected')
+        if selection.get('request_sha256'):
+            encoded = json.dumps({'messages': payload['messages'], 'tools': payload.get('tools', [])},
+                                 ensure_ascii=False)
+            assert hashlib.sha256(encoded.encode()).hexdigest() == selection['request_sha256']
+        assert session.last_run['_request_messages'] == public['messages']
+    return {'provider': 'deepseek', 'purpose': purpose,
+            'request_sha256': hashlib.sha256(request.content).hexdigest(),
+            'request_characters': len(request.content.decode()),
+            'message_count': len(payload['messages']), 'payload': public,
+            'reasoning_characters_sent': sum(len(m.get('reasoning_content', '')) for m in payload['messages'])}
+
+
 def run_case(case_name, output, *, seed=None, max_context_chars=120000, thinking=True, reasoning_effort='high', cancel=None):
     """seed 供局部决策实验使用；保留原记录和构造说明，不计作从零自主运行。"""
     if output.exists():
@@ -192,17 +216,7 @@ def run_case(case_name, output, *, seed=None, max_context_chars=120000, thinking
                             {'url': case.get('url', FIXTURE_URL), 'raw_content': case['page']}], 'failed_results': []})
                     raise AssertionError('测试只提供 Search 和 Extract')
             elif request.url.host == 'api.deepseek.com':
-                public = {**payload, 'messages':[{k:v for k,v in message.items() if k!='reasoning_content'}
-                                               for message in payload['messages']]}
-                selection = next(r for r in reversed(session.records) if r['kind']=='context_selected')
-                if selection.get('request_sha256'):
-                    encoded = json.dumps({'messages':payload['messages'],'tools':payload['tools']},ensure_ascii=False)
-                    assert hashlib.sha256(encoded.encode()).hexdigest()==selection['request_sha256']
-                assert session.last_run['_request_messages']==public['messages']
-                requests.append({'provider': 'deepseek', 'request_sha256': hashlib.sha256(request.content).hexdigest(),
-                                 'request_characters': len(request.content.decode()),
-                                 'message_count': len(payload['messages']), 'payload': public,
-                                 'reasoning_characters_sent':sum(len(m.get('reasoning_content','')) for m in payload['messages'])})
+                requests.append(capture_deepseek_request(request, session))
             else:
                 raise AssertionError('出现非预期的服务地址')
             return remote.send(request, stream=True)
@@ -247,7 +261,7 @@ def run_case(case_name, output, *, seed=None, max_context_chars=120000, thinking
                   'source_sha256': source_hashes, 'requests': requests, 'trace': trace,
                   'reload_same_messages': restored.last_run['messages'] == session.last_run['messages'],
                   'records': session.records,
-                  'interpretation': 'expected_checks 用于人工核对；completed 不表示答案全部正确。固定资料用例不检验 Tavily 搜索质量；提供 URL 的用例检验读取而非自主发现来源，显式要求查找的用例不证明模型会自主优先查找。requests.payload 保存公开请求投影，省略 private reasoning；发送前核对完整消息与工具的 canonical request hash，日志中仅保留推理字符数。'}
+                  'interpretation': 'expected_checks 用于人工核对；completed 不表示答案全部正确。固定资料用例不检验 Tavily 搜索质量；提供 URL 的用例检验读取而非自主发现来源，显式要求查找的用例不证明模型会自主优先查找。requests.payload 保存公开请求投影，省略 private reasoning；purpose 区分主研究 model 与独立摘要 compaction，主研究请求发送前核对完整消息与工具的 canonical request hash；两类请求均保存实际发送的哈希，推理只保留字符数。'}
         encoded = json.dumps(record, ensure_ascii=False, indent=2)
         for key in (config['DEEPSEEK_API_KEY'], config['TAVILY_API_KEY']):
             if key in encoded or json.dumps(key, ensure_ascii=False)[1:-1] in encoded:

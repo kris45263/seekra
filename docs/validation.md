@@ -15,13 +15,13 @@ uv run python -X utf8 -m unittest discover -s tests -v
 |循环与工具分派|`test_agent.py`、`test_harness.py`、`test_tool_stream.py`|根据前轮结果继续、调用结果配对、参数错误回传、完整响应前不执行工具|
 |模型协议与 usage|`test_deepseek_stream.py`、`test_chatgpt.py`、`test_chatgpt_auth.py`、`test_usage.py`|增量解析、正常结束、连接释放、身份与刷新、缺失用量不伪造|
 |检索与取消|`test_search_results.py`、`test_search_controls.py`、`test_retrieval_edges.py`、`test_tavily_cancellation.py`|参数透传、失败类别、快照与传输层取消|
-|正文与交付|`test_documents.py`、`test_delivery.py`|同快照续读、范围与游标、整批裁剪后的实际输入|
+|正文与交付|`test_documents.py`、`test_find_context.py`、`test_delivery.py`|同快照续读、完整文本块与标题边界、范围与游标、整批裁剪后的实际输入和原目标回读|
 |研究进展|`test_research.py`、`test_progress_updates.py`|局部更新、条件保留、已交付引用、发布与重载|
-|预算与恢复|`test_checkpoint.py`、`test_reasoning.py`、`test_persistent_runtime.py`、`test_runtime_edges.py`|阶段权限、供应商续接、检查点、失败续接与未知结果阻止重跑|
+|预算与恢复|`test_checkpoint.py`、`test_compaction.py`、`test_reasoning.py`、`test_persistent_runtime.py`、`test_runtime_edges.py`|旧正文外置、压缩取消/失败/提交、摘要重载与费用、供应商续接、未知结果阻止重跑|
 |历史与终稿|`test_history_review.py`、`test_answer_submission.py`|原任务归属、当时进展、原文与排版校验、保存后交付|
 |CLI 与会话|`test_session.py`、`test_cli_sessions.py`、`test_cli_package.py`、`test_repl.py`|会话隔离、独立目录入口、配置来源与恢复命令|
 |显示与输入|`test_display_events.py`、`test_stream_display.py`、`test_input_editor.py`、`test_repl_paste.py`、`test_windows_input.py`|正文与诊断故障分离、草稿、粘贴、按键转换|
-|验收与诊断脚本|`test_live_case.py`、`test_streaming_check.py`|基础验收在取消后仍保留已提交工具摘要；无工具诊断的追问、错误、取消和输出故障；不认证产品研究能力|
+|验收与诊断脚本|`test_live_case.py`、`test_check_documents.py`、`test_streaming_check.py`|基础验收取消后保留已提交工具摘要；正文运行器区分研究与摘要请求并核对实际请求；无工具诊断的追问、错误、取消和输出故障；不认证产品研究能力|
 
 涉及历史、进展或压缩时，检查实际选入下一次请求的内容。工具成功、磁盘保存、准备选择和确认交付是不同事件。测试用假模型可以证明交付和控制流程，不能证明真实模型会理解或采用这些内容。
 

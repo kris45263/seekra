@@ -31,8 +31,8 @@ class HarnessTests(unittest.TestCase):
 
     """只替换网络传输，观察真实消息与工具结果。"""
 
-    def test_read_page_and_call_count_are_visible(self):
-        """正文、请求地址和累计调用进入模型上下文；完整答案才提交会话。"""
+    def test_read_page_and_progress_keep_system_stable_and_calls_observable(self):
+        """普通读取和进展更新保持 system 前缀，调用计数仍作为执行事实保存。"""
         history = []
         def handler(request):
             body = json.loads(request.content)
@@ -43,20 +43,27 @@ class HarnessTests(unittest.TestCase):
             history.append(body["messages"])
             self.assertIn("read_page", [t["function"]["name"] for t in body["tools"]])
             if len(history) == 1:
-                self.assertIn("当前第 1 次模型调用", body["messages"][0]["content"])
                 return reply(calls=[call("read_page", {"url": "https://example.org/v1"})])
             result = json.loads(body["messages"][-1]["content"])
+            if len(history) == 3:
+                self.assertEqual(result['revision'], 1)
+                self.assertEqual(result['status'], 'success')
+                return reply("有条件成立")
             self.assertEqual(result["status"], "success")
             self.assertEqual(result["content_kind"], "page_text")
             self.assertIn('document_id', result)
             self.assertEqual(result["content"], "仅在条件 A 下成立")
             self.assertIsNone(result["final_url"])
-            self.assertIn("当前第 2 次模型调用", body["messages"][0]["content"])
-            return reply("有条件成立")
+            return reply(calls=[call('update_research', {'base_revision': 0, 'operations': []}, 'progress')])
         session = Session()
         with httpx.Client(transport=httpx.MockTransport(handler)) as client:
             self.assertEqual(run_agent("问题", client=client, model="m", deepseek_api_key="d",
                              tavily_api_key="t", session=session), "有条件成立")
+        self.assertEqual(len(history), 3)
+        self.assertTrue(all(messages[0] == history[0][0] for messages in history))
+        self.assertEqual(history[0], history[1][:len(history[0])])
+        self.assertEqual([r['round'] for r in session.records if r['kind'] == 'model_started'], [1, 2, 3])
+        self.assertEqual(session.last_run['calls'], 3)
 
     def test_page_ranges_reuse_snapshot(self):
         """长文本可继续读同一快照，不静默丢掉尾部或重复联网。"""

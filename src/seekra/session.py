@@ -19,6 +19,7 @@ RECORD_KINDS = {
     'session_created', 'session_reset', 'run_started', 'run_resumed', 'context_selected',
     'model_started', 'model_usage', 'model_completed', 'tool_started', 'tool_completed',
     'run_ended', 'observation',
+    'compaction_started', 'compaction_usage', 'compaction_failed', 'context_compacted',
 }
 
 
@@ -304,6 +305,12 @@ class Session:
             run = self.runs[record['run_id']]
             if kind == 'run_resumed':
                 run['status'] = 'running'
+                run.pop('compaction_failed_boundary', None)
+            elif kind == 'context_compacted':
+                run['provider_window'] = deepcopy(record['provider_window'])
+                run.pop('compaction_failed_boundary', None)
+            elif kind == 'compaction_failed':
+                run['compaction_failed_boundary'] = record['boundary']
             elif kind == 'context_selected':
                 run['_context_selection'] = record
                 if record.get('checkpoint_record_id'):
@@ -370,11 +377,15 @@ class Session:
         """每次请求只取最后一次累计 usage，不把缺失报告当作零消耗。"""
         calls = {}
         for record in self.records:
-            key = (record.get('run_id'), record.get('round'))
+            key = (record.get('run_id'), 'model', record.get('round'))
             if record['kind'] == 'model_started':
                 calls[key] = None
             elif record['kind'] == 'model_usage':
                 calls[key] = record['usage']
+            elif record['kind'] == 'compaction_started':
+                calls[(record.get('run_id'), 'compaction', record['id'])] = None
+            elif record['kind'] == 'compaction_usage':
+                calls[(record.get('run_id'), 'compaction', record['attempt_id'])] = record['usage']
         result = {'input_tokens': sum((u or {}).get('input_tokens') or 0 for u in calls.values()),
                 'output_tokens': sum((u or {}).get('output_tokens') or 0 for u in calls.values()),
                 'input_reports': sum(u is not None and u.get('input_tokens') is not None for u in calls.values()),
