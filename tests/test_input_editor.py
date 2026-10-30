@@ -12,7 +12,7 @@ import httpx
 
 from prompt_toolkit.input.defaults import create_pipe_input
 from prompt_toolkit.output import DummyOutput
-from seekra.input import ReplInput
+from seekra.terminal.input import ReplInput
 
 
 class PasteOutput(DummyOutput):
@@ -100,8 +100,8 @@ class InputEditorTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(task, 2)
 
     async def test_unsubmitted_busy_draft_never_becomes_a_persistent_turn(self):
-        from seekra.cli import run_question
-        from seekra.session import Session
+        from seekra.terminal.cli import run_question
+        from seekra.search.state import SearchSession as Session
         calls = []
         release = threading.Event()
         def response(request):

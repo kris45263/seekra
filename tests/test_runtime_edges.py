@@ -8,12 +8,13 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from seekra.context import build_context, ContextLimit, history_index
-from seekra.runtime import CancellationToken, ModelResponse
-from seekra.agent import execute_run
-from seekra.session import Session
-from seekra.tools import ToolRegistry
-from seekra.display import AgentDisplay
+from seekra.search.context import build_context, ContextLimit
+from seekra.search.history import history_index
+from seekra.harness.runtime import CancellationToken, ModelResponse
+from seekra.search.agent import execute_run
+from seekra.search.state import SearchSession as Session
+from seekra.harness.tools import ToolRegistry
+from seekra.terminal.display import AgentDisplay
 
 
 class RuntimeEdgeTests(unittest.TestCase):
@@ -72,8 +73,8 @@ class RuntimeEdgeTests(unittest.TestCase):
         self.assertEqual(fresh.last_run['calls'], 14)
 
     def test_final_notification_failure_preserves_committed_result_after_reload(self):
-        from seekra.runtime import ContentOutputError
-        from seekra.cli import continuation_hint
+        from seekra.harness.runtime import ContentOutputError
+        from seekra.terminal.cli import continuation_hint
         class Model:
             identity = 'test:final-notification'
             def generate(self, *args, **kwargs):
@@ -262,7 +263,7 @@ class RuntimeEdgeTests(unittest.TestCase):
         self.assertEqual(session.last_run['error'], '模型数据错误')
 
     def test_output_failure_in_error_display_does_not_mask_execution_error(self):
-        from seekra.runtime import ContentOutputError
+        from seekra.harness.runtime import ContentOutputError
         error = ValueError('模型数据错误')
         class Model:
             identity = 'test:cleanup'
@@ -281,7 +282,7 @@ class RuntimeEdgeTests(unittest.TestCase):
         class Model:
             identity = 'test:storage'
             def generate(self, *args, **kwargs):
-                with patch('seekra.session.os.fsync', side_effect=error):
+                with patch('seekra.harness.session.os.fsync', side_effect=error):
                     kwargs['on_usage']({'input_tokens':3})
                 raise AssertionError('存储失败后不能继续')
         with tempfile.TemporaryDirectory() as directory:
@@ -302,7 +303,7 @@ class RuntimeEdgeTests(unittest.TestCase):
             self.assertEqual(Session.list_saved(Path(directory))[0]['status'],'unsupported')
 
     def test_recovery_hint_uses_saved_answer_and_actual_limit_reason(self):
-        from seekra.cli import continuation_hint
+        from seekra.terminal.cli import continuation_hint
         session=Session()
         session.record('run_started',run_id='r',question='问题',system='规则',config={})
         session.record('model_started',run_id='r',round=1,system='规则')
@@ -318,7 +319,7 @@ class RuntimeEdgeTests(unittest.TestCase):
         self.assertNotIn('输入 /continue 继续',continuation_hint(session))
 
     def test_committed_model_text_is_not_saved_again_as_a_partial_answer(self):
-        from seekra.display import session_transcript
+        from seekra.terminal.display import session_transcript
         class Model:
             identity='test:partial'
             def generate(self,messages,tools,**callbacks):
@@ -365,7 +366,7 @@ class RuntimeEdgeTests(unittest.TestCase):
                 Session.load(session.path)
 
     def test_offloaded_tool_body_can_be_read_without_mutating_source(self):
-        from seekra.tools import default_registry
+        from seekra.search.tools import default_registry
         import httpx
         s=Session()
         original=json.dumps({'operation':'read_page','status':'partial','content':'z'*8000},ensure_ascii=False)
@@ -383,7 +384,7 @@ class RuntimeEdgeTests(unittest.TestCase):
         with httpx.Client() as client:
             registry=default_registry(client,'unused',s)
             result=json.loads(registry.execute({'id':'h','function':{'name':'read_history',
-                'arguments':'{"record_id":"1","limit":24000}'}},{},{}))
+                'arguments':'{"record_id":"1","limit":24000}'}}).content)
         self.assertIn(original, result['content'])
         self.assertEqual(messages[-1]['content'],original)
 
@@ -422,7 +423,7 @@ class RuntimeEdgeTests(unittest.TestCase):
     def test_storage_failure_does_not_append_a_second_record(self):
         with tempfile.TemporaryDirectory() as d:
             s=Session.create(Path(d))
-            with patch('seekra.session.os.fsync',side_effect=OSError('磁盘故障')):
+            with patch('seekra.harness.session.os.fsync',side_effect=OSError('磁盘故障')):
                 with self.assertRaises(OSError):s.clear()
             before=s.path.read_bytes()
             with self.assertRaises(RuntimeError):s.clear()
@@ -442,7 +443,7 @@ class RuntimeEdgeTests(unittest.TestCase):
     def test_cancellation_after_tool_return_preserves_known_result(self):
         cancel=CancellationToken()
         registry=ToolRegistry()
-        def tool(call,pages,known):
+        def tool(call):
             cancel.cancel()
             return '{"status":"success","value":42}'
         registry.register({'type':'function','function':{'name':'calculate','parameters':{'type':'object'}}},tool)

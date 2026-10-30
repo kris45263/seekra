@@ -1,6 +1,6 @@
 """支持通过 python -m seekra 启动同一个命令行入口。"""
 
-from .cli import main
+from .terminal.cli import main
 
 
 if __name__ == "__main__":

@@ -40,8 +40,8 @@ class ByteStream(httpx.SyncByteStream):
 
 class StreamTests(unittest.TestCase):
     def setUp(self):
-        self.assertIsNotNone(importlib.util.find_spec("seekra.deepseek"), "需要实现 deepseek.py")
-        from seekra.deepseek import stream_chat_text
+        self.assertIsNotNone(importlib.util.find_spec("seekra.providers.deepseek_stream"), "需要实现 deepseek.py")
+        from seekra.providers.deepseek_stream import stream_chat_text
         self.receive = stream_chat_text
 
     def ask(self, items, callback=None, status=200, media="text/event-stream", messages=None):

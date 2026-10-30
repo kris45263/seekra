@@ -4,13 +4,13 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from seekra.context import history_index, read_history
-from seekra.agent import execute_run
-from seekra.research import update_research
-from seekra.delivery import remember_delivery
-from seekra.runtime import ModelResponse
-from seekra.session import Session
-from seekra.tools import default_registry
+from seekra.search.history import history_index, read_history
+from seekra.search.agent import execute_run
+from seekra.search.research import update_research
+from seekra.search.documents.delivery import remember_delivery
+from seekra.harness.runtime import ModelResponse
+from seekra.search.state import SearchSession as Session
+from seekra.search.tools import default_registry
 from test_documents import add_page, begin, complete_tool
 from test_research import deliver
 

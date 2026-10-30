@@ -11,7 +11,7 @@ from unittest.mock import patch
 import httpx
 
 from scripts import check_documents
-from seekra.session import Session
+from seekra.search.state import SearchSession as Session
 
 
 class CheckDocumentsTests(unittest.TestCase):
@@ -106,6 +106,8 @@ class CheckDocumentsTests(unittest.TestCase):
             result = json.loads(text)
         self.assertEqual(status, 0, result['error'])
         self.assertEqual(result['answer'], '完成')
+        self.assertIn('harness/context.py', result['source_sha256'])
+        self.assertIn('search/context.py', result['source_sha256'])
         self.assertEqual([row['purpose'] for row in result['requests']], ['compaction', 'model'])
         self.assertEqual(len(sent), 2)
         for row, request in zip(result['requests'], sent):

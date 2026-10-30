@@ -20,16 +20,20 @@ uv run seekra --repl
 
 |修改目标|主要模块|需要关注的行为|
 |---|---|---|
-|研究循环与任务结束|`agent.py`、`runtime.py`|请求历史、工具配对、取消、失败与完成状态|
-|上下文与恢复|`context.py`、`checkpoint.py`、`compaction.py`、`provider_context.py`|实际请求、独立压缩提交、预算与续接缺失后的重建|
-|模型协议与授权|`models.py`、`deepseek.py`、`chatgpt.py`、`chatgpt_auth.py`|流结束校验、工具组装、连接释放、身份与令牌刷新|
-|工具与网络获取|`tools.py`、`retrieval.py`、`operations.py`|非法参数不联网、结果语义、失败原因与快照|
-|正文与进展|`documents.py`、`delivery.py`、`research.py`、`progress.py`|稳定引用、实际交付范围、进展版本与局部更新|
-|显式终稿|`answers.py`|原文校验、排版覆盖、依赖声明和恢复交付|
-|终端与命令|`cli.py`、`display.py`、`input.py`、`windows_input.py`|配置来源、正文输出、运行中草稿与按键协议|
-|持久会话|`session.py`|提交、重载、未知工具结果、文件锁与 reset 隔离|
+|通用循环与终止|`harness/loop.py`、`harness/runtime.py`|完整响应、调用配对、取消、失败与完成状态|
+|通用请求/工具接口|`harness/context.py`、`harness/tools.py`|策略身份、实际请求预算、ToolResult 与执行元数据|
+|搜索入口和提示|`search/agent.py`、`search/prompt.py`|模型与工具组装、提示模板身份、旧会话恢复|
+|搜索上下文|`search/context.py`、`search/compaction.py`、`search/recovery.py`|正文交付、摘要提交、供应商续接缺失后的恢复|
+|模型协议与授权|`providers/`|SSE 完整结束、工具组装、连接释放、认证与用量|
+|搜索工具与获取|`search/tools.py`、`search/retrieval.py`|参数校验、失败原因、页面更新先准备后提交|
+|正文与进展|`search/documents/`、`search/research.py`、`search/progress.py`|稳定引用、实际交付范围、进展版本与局部更新|
+|历史与显式终稿|`search/history.py`、`search/answers.py`|当时证据归属、原文校验、排版及恢复交付|
+|终端与命令|`terminal/`|配置、正文输出、运行中草稿和按键协议|
+|会话持久化|`harness/session.py`；搜索投影在 `search/state.py`|提交、重载、未知工具结果、文件锁与 reset 隔离|
 
-以上模块位于 `src/seekra/`。正文、进展和历史视图都从已提交执行事实重建；判断上下文变更时，核对实际下一次模型请求，不能只看保存记录。
+以上路径相对于 `src/seekra/`。新增工具把依赖绑定在注册函数，处理函数接收完整调用，返回文本或 `ToolResult`；不要把业务缓存参数加回通用循环。新增 Provider 实现 `Model`，有续接状态时实现 `ContextModel`；接入位置是 Search 组装入口。普通任务可直接使用通用循环，无需引用 Search。
+
+正文、进展和历史视图都从已提交事实重建；判断上下文变化时核对实际下一次模型请求。`test_architecture.py` 保护依赖方向、裸 Harness 运行、工具提交以及 Search 投影边界。旧 `seekra.agent` 和 `seekra.session` 仅保留已公开 Search 入口；项目内代码直接导入新实现路径。
 
 ## 工程验证
 
@@ -68,3 +72,5 @@ uv build
 ```
 
 `dist/` 内的包是构建时快照，不随源码变化；可编辑安装运行当前源码。分发前重新构建并验证安装入口。真实服务评估目前没有自动 CI 质量评分，离线测试通过不认证研究答案正确。
+
+构建包含规则独立于 Git 忽略规则；`pyproject.toml` 显式排除 `.uv-cache`，包括误留在源码子目录中的缓存。检查 sdist 和 wheel 的实际条目，再在独立目录安装 wheel 验证命令入口。正文验收脚本 `check_documents.py` 递归记录 `src/seekra` 下的 Python 源码指纹，用相对路径区分不同目录中的同名文件。

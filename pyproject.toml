@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
-seekra = "seekra.cli:main"
+seekra = "seekra.terminal.cli:main"
 
 [project.urls]
 Repository = "https://github.com/kris45263/seekra"
@@ -24,3 +24,7 @@ build-backend = "uv_build"
 
 [tool.uv]
 cache-dir = ".uv-cache"
+
+[tool.uv.build-backend]
+# uv 的构建包含规则独立于 Git 忽略规则；源码目录内的缓存也不分发。
+source-exclude = [".uv-cache"]

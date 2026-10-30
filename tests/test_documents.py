@@ -9,10 +9,11 @@ from unittest.mock import patch
 
 import httpx
 
-from seekra.agent import run_agent
-from seekra.context import build_context, read_history
-from seekra.session import Session
-from seekra.tools import default_registry
+from seekra.search.agent import run_agent
+from seekra.search.context import build_context
+from seekra.search.history import read_history
+from seekra.search.state import SearchSession as Session
+from seekra.search.tools import default_registry
 from test_agent import call, reply
 
 
@@ -253,7 +254,7 @@ class DocumentTests(unittest.TestCase):
         self.assertEqual(source['evidence_ref'], window['evidence_ref'])
 
     def test_history_source_navigation_keeps_distinct_find_hits_without_marking_delivery(self):
-        from seekra.delivery import remember_delivery
+        from seekra.search.documents.delivery import remember_delivery
         session = Session()
         body = 'Intro. ' * 1000 + '\nFIRST needle condition.\n' + 'gap ' * 300 + '\nSECOND needle exception.\n'
         page = add_page(session, body)
@@ -433,7 +434,7 @@ class DocumentTests(unittest.TestCase):
                                ('find_in_documents', {'query': ''}),
                                ('list_documents', {'limit': True})]:
                 with self.subTest(name=name):
-                    result = json.loads(registry.execute(call(name, args), {}, {}))
+                    result = json.loads(registry.execute(call(name, args)).content)
                     self.assertEqual(result['status'], 'failed')
                     self.assertEqual(result['error_code'], 'invalid_arguments')
 
@@ -485,7 +486,7 @@ class DocumentTests(unittest.TestCase):
             original_record = session.record
             def record(kind, **data):
                 if kind == 'tool_completed':
-                    with patch('seekra.session.os.fsync', side_effect=OSError('disk failed')):
+                    with patch('seekra.harness.session.os.fsync', side_effect=OSError('disk failed')):
                         return original_record(kind, **data)
                 return original_record(kind, **data)
             with patch.object(session, 'record', side_effect=record), self.assertRaises(OSError):
@@ -512,7 +513,7 @@ class DocumentTests(unittest.TestCase):
             session = Session.create(Path(directory))
             page = add_page(session, '# Guide\n\n## Conditions\n' + '正文和条件。' * 1800)
             section = session.documents.read_section(page['outline'][1]['section_ref'])
-            script = ('import json,sys; from pathlib import Path; from seekra.session import Session; '
+            script = ('import json,sys; from pathlib import Path; from seekra.search.state import SearchSession as Session; '
                       's=Session.load(Path(sys.argv[1])); '
                       'print(json.dumps(s.documents.read_section(sys.argv[2],cursor=sys.argv[3]),ensure_ascii=False))')
             process = subprocess.run([sys.executable, '-X', 'utf8', '-c', script,

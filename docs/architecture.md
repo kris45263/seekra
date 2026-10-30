@@ -6,50 +6,37 @@
 
 ## 整体结构
 
-Seekra 是一个终端搜索研究助手。用户提出问题后，模型根据已有信息选择搜索、读取网页、保存研究进展或直接回答。工具结果会交回模型，供它决定下一步。这个过程持续到模型给出最终答案，或任务因取消、错误、预算不足而停止。
-
-研究过程由一个 Agent 执行循环管理。CLI 接收用户操作、准备配置和展示结果；执行循环调用模型和工具、检查预算并保存执行进度。默认模型接入 DeepSeek；可选 ChatGPT 订阅入口复用同一执行循环，搜索和网页提取仍使用 Tavily。
+Seekra 当前的产品是终端搜索研究助手。内部把可复用的执行机制与搜索能力分开：Harness 管理一次运行如何推进和提交，Search 决定搜索任务使用什么提示、工具、资料状态与上下文策略；Provider 负责模型协议，Terminal 负责用户交互。
 
 ```text
-用户输入
-   │
-   ▼
-CLI：准备配置、选择 Session、创建展示对象
-   │
-   ▼
-run_agent：组装 DeepSeekModel 和默认工具集合
-   │
-   ▼
-execute_run：管理一次研究任务
-   ├─ compaction、checkpoint、context：选择消息、外置正文并按需压缩旧交互
-   ├─ Model：请求模型，取得完整响应
-   ├─ ToolRegistry：执行模型选中的工具
-   ├─ Session：记录执行进度，更新任务状态
-   └─ 正文与事件回调：交给 display 展示
+terminal.cli.main / run_question
+  → search.agent.run_agent 或 run_chatgpt
+  → search.agent.run_search：模型、SearchSession、工具、取消令牌
+  → search.agent.execute_run：附加 SEARCH_AGENT 策略
+  → harness.loop.execute_run
+       ├─ AgentDefinition.prepare_request → Search 上下文/恢复/压缩
+       ├─ Model.generate → Provider 协议
+       ├─ ToolRegistry.execute → 注册的具体工具
+       ├─ Session.record / complete_model → 持久化与状态投影
+       └─ on_content / on_event → Terminal 展示
 ```
 
-源码位于 `src/seekra/`。`seekra` 和 `python -m seekra` 都进入 `cli.main`。
+所有源码在 `src/seekra/`。两个命令入口都进入 `terminal.cli.main`。完整目录见 README，按修改目标查找实现见 [开发指南](development.md)。
 
-|模块|负责的工作|
-|---|---|
-|`cli.py`|读取配置，处理运行参数和会话命令，连接执行核心与终端界面|
-|`agent.py`|创建和恢复任务，累计模型调用，安排工具执行，处理任务结束状态|
-|`compaction.py`|选择摘要范围，调用模型压缩，检查预算与收益后提交可恢复窗口|
-|`checkpoint.py`|按软预算外置旧正文，清除历史阶段权限标记，保留完整工具集合|
-|`runtime.py`|定义 Model、可选 ContextModel、ModelResponse、ModelContinuation、RunResult 和 CancellationToken|
-|`models.py`、`deepseek.py`|发送 DeepSeek 请求，组装和校验流式响应，整理服务返回的用量统计|
-|`chatgpt.py`、`chatgpt_auth.py`|适配 ChatGPT 订阅的 Responses 流与工具协议，管理 Seekra 独立 OAuth 注册、受保护凭据和刷新|
-|`provider_context.py`|将供应商续接字段纳入实际请求预算，缺失或无法容纳时重建业务上下文|
-|`tools.py`|定义和注册工具，解析模型给出的参数，把结果转换为模型可接收的 JSON 文本|
-|`retrieval.py`、`operations.py`|调用 Tavily，整理搜索结果和页面快照，统一操作状态与错误字段|
-|`session.py`|保存执行记录，从记录重建任务状态、对话消息和页面缓存；提交完整响应后管理易失的模型续接|
-|`context.py`|控制模型请求的大小，生成历史记录索引，为较长工具结果提供原文回读入口|
-|`documents.py`|建立来源与稳定正文索引，按小节和命中读取，生成正文裁剪后的范围、引用与续读入口|
-|`text_windows.py`|选择有界连续原文块和命中裁剪范围，不改写或总结正文|
-|`delivery.py`|为最新工具结果组分配请求预算，统计实际交付的正文范围|
-|`research.py`、`progress.py`|前者描述研究工具参数；后者校验引用、处理局部更新与旧格式更新、分配稳定编号并生成阅读导航|
-|`display.py`|把正文片段和执行事件转换为终端输出，从会话记录重建可读对话|
-|`input.py`、`windows_input.py`|管理持续输入区和后台任务，处理粘贴、发送、滚动及 Windows 按键协议|
+|职责|主要入口|依赖和状态归属|
+|---|---|---|
+|执行生命周期|`harness/loop.py`|接收策略、模型、注册表和会话；不认识搜索工具名称或页面缓存|
+|通用契约|`harness/runtime.py`、`harness/context.py`、`harness/tools.py`|模型响应、取消、请求准备结果、工具结果；无产品界面依赖|
+|执行事实与通用状态|`harness/session.py`|追加日志、排他、消息、待执行调用、运行状态、模型续接缓存|
+|搜索组装与状态|`search/agent.py`、`search/state.py`|绑定提示、工具和策略；SearchSession 拥有页面、文档、研究与交付投影|
+|搜索请求准备|`search/context.py`、`search/recovery.py`、`search/compaction.py`|正文外置、当前阅读状态、续接恢复、摘要窗口；最终按 Provider 实际请求计量|
+|资料与研究|`search/documents/`、`search/progress.py`、`search/history.py`|快照和引用、研究局部更新、历史证据归属；不推进模型循环|
+|具体模型|`providers/`|DeepSeek 与 ChatGPT 各自组装协议，共用 SSE 和用量解析；不创建搜索运行|
+|终端产品|`terminal/`|配置、会话命令、展示、编辑器；调用搜索入口并观察公开结果|
+
+`harness` 不导入其余三个包；Provider 不导入 Search 或 Terminal。Search 的组装入口选择 Provider，其余搜索模块依赖通用契约和搜索资料实现。Terminal 可选择 Provider 配置和认证，但不实现另一套循环。测试同时检查生产导入方向和干净进程中不加载 Search 的普通工具运行。
+
+通用 `Session` 只维护执行事实和通用运行投影；`SearchSession` 继承其提交和重放机制，添加搜索状态。下文涉及页面、研究与引用时均指 SearchSession。磁盘仍使用原有版本 1 记录，源码路径不参与恢复身份，未批量改写旧会话。
 
 ## 会话、任务与运行状态
 
@@ -67,7 +54,7 @@ Session 同时保存执行记录和供后续问题使用的完成历史，两者
 |---|---|
 |`Session.records`|按顺序保存执行事件，包括模型响应、工具结果、用量和任务结束状态。失败任务的记录也保留，用于恢复和历史回读。|
 |最近任务的 `messages`、`pages`|当前研究正在使用的消息和页面快照，包含本任务已经取得的中间结果。|
-|`Session.messages`、`Session.pages`|截至最近一次成功任务的对话消息和页面快照。新问题从这里继承历史。|
+|`SearchSession.messages`、`SearchSession.pages`|截至最近一次成功任务的对话消息和页面快照。新问题从这里继承历史。|
 
 任务成功后，Session 才把该任务的消息和页面快照设为完成历史。任务失败或取消时，完成历史保持不变，未完成研究留在执行记录中。这样，用户既能继续失败的任务，也能直接提一个新问题，而不必让新问题自动继承失败过程。
 
@@ -75,10 +62,36 @@ Session 只为最近任务保留完整的运行消息和页面缓存；更早任
 
 ## 一次任务如何执行
 
-`agent.py` 中的 `execute_run` 按下面的顺序推进任务。每个已完成的关键步骤先写入 Session，再进入下一步。
+### 从一次真实运行连接代码与数据
+
+2026-10-29 使用现有 `page` 验收题：读取 Python 3.13 的 `c-api/memory.html`，只据这一页说明 mimalloc 小节，并区分“未记载”与“不存在”。这次独立重试经过两轮完整工具调用，在第 3 次模型请求遇到 `RemoteProtocolError`，没有最终答案。下面以其实际记录说明调用链；正常结束分支另以源码与离线测试说明，不将失败运行写成完整质量验收。
+
+实测入口为 [scripts/run_live_case.py](../scripts/run_live_case.py) 的 `main`：读取题目与配置，创建 SearchSession 和 HTTP 客户端，调用 `run_agent`。普通产品入口是 [terminal/cli.py](../src/seekra/terminal/cli.py) 的 `main → run_question`，额外负责参数、磁盘会话选择、展示与退出码；其后进入相同的 Search 运行入口。安装后的 CLI 前缀另由 `test_cli_package.py` 验证。
+
+|实际阶段|源码与协作接口|本次输入、结果和状态变化|
+|---|---|---|
+|组装搜索运行|[search/agent.py](../src/seekra/search/agent.py)：`run_agent → run_search → execute_run`|创建 DeepSeekModel，绑定 Tavily、SearchSession 与取消令牌；SEARCH_AGENT 提供搜索提示和请求准备。模型适配器不创建工具集合|
+|开始任务|[harness/loop.py](../src/seekra/harness/loop.py)：`execute_run`；[harness/session.py](../src/seekra/harness/session.py)：`record`|记录 1 为 `run_started`；保存原问题、系统提示和模型/提示/工具身份。通用投影生成消息与 pending；SearchSession 初始化页面和交付状态|
+|准备第一次请求|`prepare_search_request →` [search/compaction.py](../src/seekra/search/compaction.py) `prepare_model_turn →` [search/recovery.py](../src/seekra/search/recovery.py) `prepare_model_context →` [search/context.py](../src/seekra/search/context.py) `prepare_context/build_context`|记录 2 选中消息 `[0,1]`，实际请求内容 16,702 字符；返回 PreparedRequest，再记录 `model_started`。本次未触发摘要|
+|模型选择网页读取|[providers/deepseek.py](../src/seekra/providers/deepseek.py)：`generate`；[providers/deepseek_stream.py](../src/seekra/providers/deepseek_stream.py)：`stream_chat_completion`|SSE 在 [providers/sse.py](../src/seekra/providers/sse.py) 解析；完整响应通过检查，记录 5 保存 `read_page(url)`。未完整收齐时不会执行工具|
+|获取并提交网页|[harness/tools.py](../src/seekra/harness/tools.py)：`ToolRegistry.execute` → [search/tools.py](../src/seekra/search/tools.py) 的绑定处理函数 → [search/retrieval.py](../src/seekra/search/retrieval.py)：`read_page`|记录 6 为工具开始。Tavily 返回的快照先在页面副本中准备；ToolResult 携带正文和 page_updates，循环提交记录 7|
+|生成稳定资料与阅读入口|[search/state.py](../src/seekra/search/state.py)：`_prepare_record/_apply` → [documents/store.py](../src/seekra/search/documents/store.py)：`prepare/sync`|记录 7 对应 `S1-P1`，给模型的结果是目录与开头正文，状态 partial，引用 `S1-P1@0-1630`。完整获取数据与模型阅读视图不同；编号和快照在提交后可回查|
+|依据目录读取目标小节|再次准备请求后调用模型；`read_section` 由 Search 注册表直接调用 `Documents.read_section`|记录 8 请求为 32,916 字符；记录 11 选择 `S1-P1-H14`；记录 13 返回目标小节，引用 `S1-P1@32264-32634`，状态 success。此次本地读取没有再次访问 Tavily|
+|准备利用新正文|再次通过同一请求策略|记录 14 选中 `[0,1,2,3,4,5]`，35,443 字符，包含刚取得的小节；记录 15 开始第 3 次模型请求。准备/发送不等于已确认模型收到，交付范围只在完整响应提交后确认|
+|处理实际中断|`execute_run` 的异常分支与 `Session.record('run_ended', ...)`|服务断开且没有完整响应，记录 16 为 failed。工具已有完成记录，因此不标为工具结果未知；没有新 assistant 消息，也没有最终答案|
+
+字符数是供应商请求内容的序列化度量，不是 token 数。文档编号与偏移只属于这次快照，下一次抓取可能不同。这个例子对应的页面明确限定为 Python 3.13；一次获取/读取成功不证明资料足以回答所有构建条件问题。
+
+正常完成时，Provider 返回非空、无工具调用的 `stop` 响应，循环校验并调用 `Session.complete_model`。下一次循环发现最后消息已是最终 assistant 响应，追加 `run_ended(completed)`，再通知终端。正文通过 `on_content` 流式显示，完成通知不会重复输出答案。崩溃发生在完整答案保存后时，恢复只补完成标记；显式终稿工具则从已保存工具结果交付。这些分支有 `test_persistent_runtime.py`、`test_runtime_edges.py` 和 `test_answer_submission.py` 保护，本次远端实测没有走到它们。
+
+取消由同一个 CancellationToken 传到循环、Provider 和搜索工具。取消发生在工具返回后，先提交已知结果；工具抛出异常而结果未知时才进入 needs_attention。参数错误或检索失败若已形成工具结果，会返回模型供其调整。预算整理仍无法容纳时暂停；摘要成功落盘后才替换窗口。详细规则见下文，不能把这些不同分支统称为“失败后重试”。
+
+### 循环的通用顺序
+
+`harness/loop.py` 中的 `execute_run` 按下面的顺序推进任务。每个已完成的关键步骤先写入 Session，再进入下一步。
 
 1. **创建任务。**保存用户问题、系统提示和运行配置身份，从 Session 的完成历史建立本任务的消息和页面缓存。
-2. **准备模型输入。**`compaction.prepare_model_turn` 协调消息投影和必要的独立压缩；`checkpoint.prepare_context` 与 `context.build_context` 按预算外置正文，工具集合不随研究进展变化。系统提示不随调用次数或进展版本逐轮变化，便于复用请求前缀；调用次数保留在执行记录与展示事件中，进展版本随研究进展结果提供。日期与恢复仍可改变系统提示。摘要单独调用模型，没有工具权限，正文不作为用户回答显示；用量进入会话总计。
+2. **准备模型输入。**`search.compaction.prepare_model_turn` 协调消息投影和必要的独立压缩；`search.context.prepare_context` 与 `search.context.build_context` 按预算外置正文，工具集合不随研究进展变化。系统提示不随调用次数或进展版本逐轮变化，便于复用请求前缀；调用次数保留在执行记录与展示事件中，进展版本随研究进展结果提供。日期与恢复仍可改变系统提示。摘要单独调用模型，没有工具权限，正文不作为用户回答显示；用量进入会话总计。
 3. **请求模型。**先记录 `model_started`，再调用 `Model.generate`。正文片段通过回调即时显示，用量统计单独记录。
 4. **接收完整响应。**校验响应后保存 `model_completed`。如果模型返回工具调用，执行核心按返回顺序逐个执行；如果返回非空最终答案，则结束任务。
 5. **执行工具。**每次调用前保存 `tool_started`，调用返回后保存 `tool_completed`，其中包含结果和页面快照变更。结果作为 `tool` 消息加入本任务，随后回到模型决策步骤。
@@ -90,15 +103,25 @@ Session 只为最近任务保留完整的运行消息和页面缓存；更早任
 
 ### 模型和工具怎样接入执行核心
 
-`execute_run` 接收 Model、ToolRegistry、Session 和取消令牌，返回 `RunResult`。结果包含任务编号、状态、答案、错误说明以及原异常 `cause`。普通执行错误在记录后通过结果返回；参数或恢复配置不合法、存储不可用等错误可以直接抛出。
+`harness.loop.execute_run` 接收 AgentDefinition、Model、ToolRegistry、Session 和取消令牌，返回 `RunResult`。Search 的同名入口负责传入 `SEARCH_AGENT`。结果包含任务编号、状态、答案、错误说明以及原异常 `cause`。普通执行错误在记录后通过结果返回；参数或恢复配置不合法、存储不可用等错误可以直接抛出。
 
 Model 的 `generate` 方法接收消息、工具定义、正文回调、用量回调和取消令牌，返回包含完整 assistant 消息及结束原因的 `ModelResponse`；可选的 `continuation` 携带仅在内存中保留的供应商续接数据，`provider` 携带模式和实际服务标识等可记录信息。执行核心检查取消与响应完整性后调用 `Session.complete_model`；该方法提交公开响应和续接摘要，成功后才发布内存续接。存储失败或残缺响应不会发布新的续接缓存。
 
 需要续接投影的适配器实现可选的 `ContextModel`：`project_messages` 接收业务消息及与其一一对应的 `ModelContinuation` 快照，返回请求投影与缺失续接的位置；`request_content` 提供实际发送的消息和工具内容；`can_rebuild_context` 明确是否允许预算压力下重建。快照由 `Session.model_continuations` 从会话业务消息取得，适配器无需访问会话内部映射。快照的 `required=True` 且 `value=None` 表示原响应需要续接、但内存数据已经缺失。仅实现 `Model.generate` 的嵌入模型仍可直接运行。
 
-ToolRegistry 保存工具定义及其执行函数。执行核心把工具调用交给注册表，具体参数规则和业务处理由工具负责。默认集合包含 `tavily_search`、`read_page`、`list_documents`、`read_document`、`read_section`、`find_in_documents`、`update_research`、`list_history` 和 `read_history`。
+ToolRegistry 保存工具定义及其执行函数。执行函数只接收一条完整调用，依赖在注册处绑定；返回字符串或 `ToolResult(content, record_fields)`，注册表统一为后者。状态更新字段不能覆盖 run_id、call_id、结果或终稿字段等执行元数据。执行核心提交完成事件，具体参数规则和业务处理由工具负责。默认集合包含 `tavily_search`、`read_page`、`list_documents`、`read_document`、`read_section`、`find_in_documents`、`update_research`、`list_history` 和 `read_history`。
 
-`run_agent` 是面向现有 DeepSeek 配置的调用入口：它创建模型适配器和默认工具集合，调用 `execute_run`，成功时返回答案字符串，失败时重新抛出结果中的异常。需要自行提供模型或工具集合的调用者可以直接使用 `execute_run`。
+`search.agent.run_agent` 和 `run_chatgpt` 分别准备模型及凭据，再调用共同的 `run_search` 组装工具并执行。需要自行提供模型的搜索调用可使用 `run_search`；自行提供搜索工具集合时使用 `search.agent.execute_run`。普通任务使用 `harness.loop.execute_run` 与 `AgentDefinition.from_prompt`，不会自动获得搜索工具或搜索恢复策略。
+
+### 策略和状态怎样接入
+
+`AgentDefinition` 包含提示的稳定身份、系统提示生成函数和请求准备函数。Search 保持原提示模板哈希，日期在生成提示时更新。准备函数返回 `PreparedRequest(messages, tools, selection, system)`；`selection` 是公开投影记录，不含供应商私有推理。通用基础策略保留完整交互，按 `Model.request_content` 检查字符预算；缺少续接或超限会暂停，不擅自裁剪或假装能够恢复任意业务。
+
+Search 的上下文策略在 `prepare_search_request → compaction.prepare_model_turn` 后交付相同结果。恢复快照和摘要依赖搜索资料、引用及研究状态，因此仍属于 Search，没有把它们改名为“通用上下文”后隐藏这种依赖。
+
+`SearchSession` 通过三个受限方法协作：`_prepare_record` 在写盘前规范化候选资料并验证版本；`_persisted_record` 保留已脱敏正文的坐标，避免二次替换；`_apply` 在提交后或重放时更新搜索投影。父类继续独占追加、flush/fsync、锁和错误状态。它不是可任意调用外部服务的插件回调总线。
+
+搜索工具在页面副本上运行，将差异作为 `ToolResult.record_fields['page_updates']` 返回；循环不再复制页面或比较 URL。写盘失败时不发布候选页面和文档编号。`tool_started` 已提交意味着外部操作可能已经发生，不能据内存没有更新推断远端操作没有发生。模型完整响应提交后，SearchSession 才将该请求中的正文范围计为已交付。
 
 ### ChatGPT 订阅模型接入
 
@@ -130,7 +153,7 @@ ToolRegistry 保存工具定义及其执行函数。执行核心把工具调用�
 
 DeepSeek 使用 SSE 分段返回正文和工具参数。正文可以边接收边展示，但工具参数可能尚未收齐，因此不能收到片段就执行工具。
 
-`deepseek.py` 按工具的 `index` 分别累计调用，检查 `id`、`type`、`name` 是否一致，并拼接 `arguments` 字符串。收到正常的 `finish_reason` 和 `[DONE]` 后，才返回整轮响应。正常响应有两种：`stop` 且正文非空、没有工具调用；或 `tool_calls` 且工具调用结构完整。缺少结束标记、输出截断、协议错误和网络中断都会终止本次执行，不自动重试或切换为非流式请求。
+`providers/deepseek_stream.py` 按工具的 `index` 分别累计调用，检查 `id`、`type`、`name` 是否一致，并拼接 `arguments` 字符串。收到正常的 `finish_reason` 和 `[DONE]` 后，才返回整轮响应。正常响应有两种：`stop` 且正文非空、没有工具调用；或 `tool_calls` 且工具调用结构完整。缺少结束标记、输出截断、协议错误和网络中断都会终止本次执行，不自动重试或切换为非流式请求。
 
 执行核心确认整轮调用结构有效后，才执行第一个工具。参数字符串是否为合法 JSON、字段是否符合工具要求，则由各工具在执行时检查；参数错误会作为工具结果交回模型。结构完整与参数有效是两个不同的检查阶段。
 
@@ -228,7 +251,7 @@ Session 使用进程内锁阻止同一对象被并发操作；持久会话另用
 
 ## 模型上下文如何控制大小
 
-执行记录会随着会话增长，但每次请求不必把所有原文都发给模型。`context.build_context` 从任务消息生成本次请求所用的副本，这个过程称为上下文投影；原始记录仍保存在 Session 中。
+执行记录会随着会话增长，但每次请求不必把所有原文都发给模型。`search.context.build_context` 从任务消息生成本次请求所用的副本，这个过程称为上下文投影；原始记录仍保存在 Session 中。
 
 默认 `max_context_chars=120000`，限制消息和工具定义序列化后的字符数。它不是 token 数，也不是模型服务的上下文窗口容量。
 
@@ -236,7 +259,7 @@ Session 使用进程内锁阻止同一对象被并发操作；持久会话另用
 
 当前以硬上限的 80% 作为提前整理阈值。先按软目标外置旧工具正文，保留最新有效进展、工具失败详情和历史回读结果；不为了达到软目标裁短最新结果组。`update_research` 是可选的研究记录工具，不再控制搜索、阅读权限或旧轮次裁剪。空更新只保存现有研究状态。
 
-外置后仍达到阈值时，`compaction.prepare_model_turn` 尝试独立压缩。切点选择完整 assistant 交互组的起点，至少保留最新调用与全部结果；近期交互优先控制在请求预算的四分之一以内，不能因此拆散调用与结果。摘要使用拟移出范围内的公开交互、此前摘要、当前进展和实际保留的恢复资料。对同一消息，优先使用最近一次完整模型响应确认交付的公开投影，避免先把正文新缩成预览再要求摘要保留其中条件；其余使用本次投影。不从更早归档批量读回全文，不传入私有推理。摘要明确覆盖范围，不能把范围内未见的信息写成整个任务从未取得。
+外置后仍达到阈值时，`search.compaction.prepare_model_turn` 尝试独立压缩。切点选择完整 assistant 交互组的起点，至少保留最新调用与全部结果；近期交互优先控制在请求预算的四分之一以内，不能因此拆散调用与结果。摘要使用拟移出范围内的公开交互、此前摘要、当前进展和实际保留的恢复资料。对同一消息，优先使用最近一次完整模型响应确认交付的公开投影，避免先把正文新缩成预览再要求摘要保留其中条件；其余使用本次投影。不从更早归档批量读回全文，不传入私有推理。摘要明确覆盖范围，不能把范围内未见的信息写成整个任务从未取得。
 
 调用前先投影候选窗口并检查是否有可释放空间。摘要输入遵守实际请求字符上限；输出预留取 8000 字符、预算八分之一、硬上限剩余空间及最低释放量约束中的较小值，不足 256 字符时不调用。最终必须释放至少预算十分之一的字符，并使下一次完整请求不超过硬上限。这些是避免无效调用的初始工程参数，不是已证明的最佳配置，也不保证每次压缩都回落到软阈值以下。
 
@@ -256,7 +279,7 @@ Session 使用进程内锁阻止同一对象被并发操作；持久会话另用
 
 DeepSeek 带工具的 reasoning 请求需要回传历史 assistant 消息对应的推理字段。`DeepSeekModel.project_messages` 在预算选择前附加这些数据，原始业务消息保持不变。消息投影与整批分配按实际字段计算字符量，`context_selected` 保存正文和工具定义的真实投影、推理字符数与完整请求摘要；推理全文不会写入记录或传给展示事件。输入中的推理字段来自内存缓存，缓存随已保留消息更新，reset 时清空。
 
-缓存缺失或必要供应商历史无法放入预算时，`provider_context.prepare_model_context` 明确建立新的请求窗口。系统说明恢复方式，用户问题附带恢复资料 JSON：此前已保存的压缩摘要、最新研究进展、有限的资料目录与近期工具状态、带精确范围的正文摘录和历史可见回复。来源正文放在资料部分，继续按外部内容处理；原始用户问题和完整执行事实仍保留在记录中。正文摘录实际送入模型并取得完整响应后，才进入已交付范围。
+缓存缺失或必要供应商历史无法放入预算时，`search.recovery.prepare_model_context` 明确建立新的请求窗口。系统说明恢复方式，用户问题附带恢复资料 JSON：此前已保存的压缩摘要、最新研究进展、有限的资料目录与近期工具状态、带精确范围的正文摘录和历史可见回复。来源正文放在资料部分，继续按外部内容处理；原始用户问题和完整执行事实仍保留在记录中。正文摘录实际送入模型并取得完整响应后，才进入已交付范围。
 
 恢复资料中的进展导航重新生成：累计交付沿用已确认记录，`current_input` 根据本次最终选入的正文和恢复摘录计算，最早未交付范围提供相应续读入口。恢复记录自身保持不变；后续窗口已经保存新的进展时，旧恢复进展和摘录退出输入，避免重复携带相互冲突的状态。
 
@@ -288,7 +311,7 @@ verbose 中的首段正文时间，从本轮模型调用事件起算，到首个
 
 后台输出通过转接器送到界面线程的对话区；stdout 被重定向时，正文仍写入重定向目标。启动或切换会话时，界面从执行记录重建问答和未完成片段。对话区只保留最近 20 万字符，滚动和裁剪不改变会话记录或模型消息；流式追加时保留用户未处于底部的阅读位置。
 
-`windows_input.py` 负责 Windows 按键转换。使用 VT 输入时，先启用 win32-input-mode，解码带修饰键的按键记录，再交给 VT 解析器处理文字、粘贴和鼠标序列；退出时关闭协议并恢复控制台模式。非交互 stdin 则在 EOF 时把整段文本作为一次输入提交。具体快捷键见 README。
+`terminal/windows_input.py` 负责 Windows 按键转换。使用 VT 输入时，先启用 win32-input-mode，解码带修饰键的按键记录，再交给 VT 解析器处理文字、粘贴和鼠标序列；退出时关闭协议并恢复控制台模式。非交互 stdin 则在 EOF 时把整段文本作为一次输入提交。具体快捷键见 README。
 
 ### 取消如何传到执行核心
 
@@ -328,3 +351,21 @@ Python 嵌入调用自备 HTTP 客户端时，需要同样挂载 `TavilyTranspor
 一个模型请求可能收到多份累计 usage，Session 只用该请求最后一份统计计算会话总量，避免重复相加。界面显示已报告部分，并说明有多少次请求的统计不完整，不把缺失用量当作已确认的零消耗。
 
 这些数字反映已经发生的请求，不能预测下一次请求的上下文大小，也不能替代本地字符预算。
+
+## 关键选择与后续演进
+
+本次选择保留执行机制并抽离搜索策略，而非仅移动文件或整体重写异步框架。循环、记录提交和取消已有实际消费者与回归保护；改变它们的所有权即可解除搜索依赖，没有必要同时更换协议或磁盘格式。普通任务与 Search 已经是两种请求策略；SearchSession 是通用 Session 的具体业务投影，暂不引入动态插件注册、事件总线或数据库仓库层。
+
+外部研究对应以下选择。源码链接固定到研究快照；开发分支上的具体实现不等于每项功能已经稳定，更不代表适合全部移植。
+
+|问题|依据|Seekra 当前选择|
+|---|---|---|
+|Harness 与产品界面|[Codex 官方平台说明](https://developers.openai.com/blog/codex-as-a-platform)、[OpenCode Server 文档](https://opencode.ai/docs/server/)|核心通过函数、返回值和回调与终端协作；尚无第二个远程客户端，不引入服务器协议|
+|工具注册与执行政策|Codex [registry](https://github.com/openai/codex/blob/5fd36fc5502136160a28a6bebec3590b0df9179a/codex-rs/core/src/tools/registry.rs) 与 [orchestrator](https://github.com/openai/codex/blob/5fd36fc5502136160a28a6bebec3590b0df9179a/codex-rs/core/src/tools/orchestrator.rs)|注册、具体依赖与结果提交分工明确；新增本机执行工具时再设计真实审批和执行环境，不把 HTTP 工具包装成沙箱|
+|Agent 配置与通用循环|OpenCode [agent.ts](https://github.com/anomalyco/opencode/blob/3d7eceb48d449f8bd7d995e154f7a24649d40a9b/packages/core/src/agent.ts) 与 [tool.ts](https://github.com/anomalyco/opencode/blob/3d7eceb48d449f8bd7d995e154f7a24649d40a9b/packages/core/src/tool.ts)|提示/请求策略、工具和模型显式组合，不复制其 Effect 服务与插件体系|
+|多任务运行所有权|OpenCode [run-coordinator](https://github.com/anomalyco/opencode/blob/3d7eceb48d449f8bd7d995e154f7a24649d40a9b/packages/core/src/session/run-coordinator.ts)、[subagent-job](https://github.com/anomalyco/opencode/blob/3d7eceb48d449f8bd7d995e154f7a24649d40a9b/packages/core/src/session/subagent-job.ts)，Codex [agent/control](https://github.com/openai/codex/blob/5fd36fc5502136160a28a6bebec3590b0df9179a/codex-rs/core/src/agent/control.rs)|未来在独立 Session 之上管理子任务、结果归属和取消；当前单会话排他保持不变|
+|上下文与执行隔离|Claude Code [子代理](https://code.claude.com/docs/en/sub-agents)和[沙箱](https://code.claude.com/docs/en/sandboxing)官方说明|独立上下文不等于操作系统隔离；本次没有实现 Sandbox，也未把官方行为说明冒充其完整核心源码|
+
+Coding Agent 接入时，需要具体的文件/命令工具、工作目录和执行政策；它可以复用循环、Model 和 Session，但搜索资料恢复策略不能直接当作 Coding 恢复。Multi-Agent 还需要委派输入、独立上下文、父子关系、等待/取消/回收和结果交付协议；目前没有这些功能。Workflow 可以在循环之外编排运行，model routing 可以在模型选择处发展，但都应等真实场景出现后再设计，不能仅根据未来名称预建目录。
+
+剩余边界：消息和运行投影仍使用字典，协议仍采用当前工具调用消息形态；每个 Session 仍仅支持一个活动执行；基础通用请求策略不会自动摘要或重建任意业务。Search 中的恢复、正文预算和研究状态仍需要协作，这些实际依赖被保留并明确组织，没有宣称已经实现完全通用的上下文引擎。

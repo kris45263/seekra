@@ -3,12 +3,12 @@ from copy import deepcopy
 import hashlib
 import json
 
-from .checkpoint import prepare_context, present_actions
-from .context import ContextLimit
-from .documents import canonical
-from .delivery import latest_batch_indices, fit_latest_batch
-from .progress import present_progress, progress_snapshot
-from .delivery import remember_delivery, quote_projection
+from seekra.search.context import prepare_context, present_actions
+from seekra.harness.context import ContextLimit
+from seekra.search.documents.store import canonical
+from seekra.search.documents.delivery import latest_batch_indices, fit_latest_batch
+from seekra.search.progress import present_progress, progress_snapshot
+from seekra.search.documents.delivery import remember_delivery, quote_projection
 
 
 def _recovery_snapshot(session):

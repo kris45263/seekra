@@ -6,8 +6,8 @@ import unittest
 
 import httpx
 
-from seekra.agent import run_agent
-from seekra.session import Session
+from seekra.search.agent import run_agent
+from seekra.search.state import SearchSession as Session
 from test_agent import call, reply
 from test_research import state, deliver, pressure_budget
 from test_documents import add_page
@@ -21,9 +21,9 @@ REFERENCE = f'S1-P1@0-{len(PAGE.strip())}'
 class CheckpointTests(unittest.TestCase):
     def test_soft_budget_offloads_old_sources_before_restricting_tools_and_survives_reload(self):
         from copy import deepcopy
-        from seekra.checkpoint import prepare_context
-        from seekra.context import build_context
-        from seekra.tools import default_registry
+        from seekra.search.context import prepare_context
+        from seekra.search.context import build_context
+        from seekra.search.tools import default_registry
         with tempfile.TemporaryDirectory() as directory:
             session = Session.create(Path(directory))
             for i in range(9):
@@ -57,9 +57,9 @@ class CheckpointTests(unittest.TestCase):
             self.assertEqual(restored_info, info)
 
     def test_soft_budget_does_not_hide_tool_failure_details(self):
-        from seekra.checkpoint import prepare_context
-        from seekra.context import build_context
-        from seekra.tools import default_registry
+        from seekra.search.context import prepare_context
+        from seekra.search.context import build_context
+        from seekra.search.tools import default_registry
         from test_documents import complete_tool
         session = Session()
         failure = {'operation': 'read_page', 'status': 'failed', 'error_code': 'timeout',
@@ -76,9 +76,9 @@ class CheckpointTests(unittest.TestCase):
         self.assertIn('FAILURE_TAIL', selected[3]['content'])
 
     def test_soft_target_keeps_latest_body_even_when_it_cannot_reach_target(self):
-        from seekra.checkpoint import prepare_context
-        from seekra.context import build_context
-        from seekra.tools import default_registry
+        from seekra.search.context import prepare_context
+        from seekra.search.context import build_context
+        from seekra.search.tools import default_registry
         session = Session()
         latest = add_page(session, '# Guide\n\n' + 'body. ' * 1000)
         definitions = default_registry(None, 'fake', session).definitions
@@ -92,7 +92,7 @@ class CheckpointTests(unittest.TestCase):
         self.assertNotIn('batch_delivery', info)
 
     def test_soft_target_without_offloadable_content_does_not_expand_or_fail_request(self):
-        from seekra.context import build_context
+        from seekra.search.context import build_context
         messages=[{'role':'system','content':'x'*2100},{'role':'user','content':'question'}]
         size=len(json.dumps({'messages':messages,'tools':[]},ensure_ascii=False))
         selected,info=build_context(messages,[],Session(),size+10,offload_target=size*4//5)
@@ -101,8 +101,8 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual(info['request_characters'],size)
 
     def test_old_stage_does_not_restrict_tools_or_navigation(self):
-        from seekra.checkpoint import prepare_context, present_actions
-        from seekra.tools import default_registry
+        from seekra.search.context import prepare_context, present_actions
+        from seekra.search.tools import default_registry
         session = Session()
         add_page(session, PAGE)
         session.last_run['progress_stage'] = {'base_revision': 0}

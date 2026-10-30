@@ -8,10 +8,10 @@ from unittest.mock import patch
 
 import httpx
 
-from seekra.agent import run_agent, system_prompt
-from seekra.context import build_context
-from seekra.session import Session
-from seekra.tools import default_registry
+from seekra.search.agent import run_agent, system_prompt
+from seekra.search.context import build_context
+from seekra.search.state import SearchSession as Session
+from seekra.search.tools import default_registry
 from test_agent import call, reply
 from test_documents import add_page, begin, complete_tool, URL
 
@@ -48,7 +48,7 @@ class ResearchTests(unittest.TestCase):
             registry = default_registry(client, 'fake', session)
             self.assertIn('update_research', {d['function']['name'] for d in registry.definitions},
                           '模型需要明确的进展更新工具')
-            return json.loads(registry.execute(call('update_research', args), {}, {}))
+            return json.loads(registry.execute(call('update_research', args)).content)
 
     def save(self, session, args):
         result = self.execute(session, args)
@@ -209,7 +209,7 @@ class ResearchTests(unittest.TestCase):
                 'role': 'assistant', 'content': None, 'tool_calls': [call('update_research', {}, 'bad-write')]},
                 finish_reason='tool_calls')
             session.record('tool_started', run_id=run_id, call_id='bad-write', tool_name='update_research')
-            with patch('seekra.session.os.fsync', side_effect=OSError('disk failed')), self.assertRaises(OSError):
+            with patch('seekra.harness.session.os.fsync', side_effect=OSError('disk failed')), self.assertRaises(OSError):
                 session.record('tool_completed', run_id=run_id, call_id='bad-write', tool_name='update_research',
                                result=json.dumps(candidate), page_updates={})
             self.assertEqual(session.last_run['research'], saved)

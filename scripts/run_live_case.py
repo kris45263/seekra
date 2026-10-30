@@ -10,10 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 import httpx
 
-from seekra.agent import run_agent
-from seekra.cli import read_config
-from seekra.session import Session
-from seekra.display import AgentDisplay
+from seekra.search.agent import run_agent
+from seekra.terminal.cli import read_config
+from seekra.search.state import SearchSession as Session
+from seekra.terminal.display import AgentDisplay
 
 
 def main() -> int:

@@ -6,9 +6,9 @@ import unittest
 
 import httpx
 
-from seekra.context import build_context
-from seekra.session import Session
-from seekra.tools import default_registry
+from seekra.search.context import build_context
+from seekra.search.state import SearchSession as Session
+from seekra.search.tools import default_registry
 from test_agent import call
 from test_documents import add_page, complete_tool
 from test_research import deliver, state
@@ -303,7 +303,7 @@ class ProgressUpdateTests(unittest.TestCase):
         self.assertIn('多处',failed['error'])
 
     def test_update_without_running_task_has_clear_error(self):
-        from seekra.research import update_research
+        from seekra.search.research import update_research
         for args in ({'goal':'核对条件','findings':[],'gaps':[],'next_step':''}, {'operations':[]}):
             with self.subTest(args=args), self.assertRaisesRegex(ValueError,'没有正在执行'):
                 update_research(Session(),0,**args)
@@ -314,7 +314,7 @@ class ProgressUpdateTests(unittest.TestCase):
             definition = next(d['function'] for d in registry.definitions if d['function']['name']=='update_research')
             self.assertEqual(set(definition['parameters']['required']), {'base_revision','operations'})
             return json.loads(registry.execute(call('update_research', {
-                'base_revision': base_revision, 'operations': operations, **fields}), {}, {}))
+                'base_revision': base_revision, 'operations': operations, **fields})).content)
 
     def save(self, session, operations, base_revision=0, **fields):
         result = self.update(session, operations, base_revision, **fields)
@@ -392,7 +392,7 @@ class ProgressUpdateTests(unittest.TestCase):
             session = Session.create(Path(directory))
             page = add_page(session, '# Guide\nPro required.')
             deliver(session)
-            from seekra.research import update_research
+            from seekra.search.research import update_research
             old = update_research(session, **state(page['evidence_ref']))
             complete_tool(session, 'update_research', old)
             restored = Session.load(session.path)
@@ -424,7 +424,7 @@ class ProgressUpdateTests(unittest.TestCase):
         bad=self.update(session,[{'op':'add_read_target','target':'S999-P1-H1','view':'section','purpose':'不存在的目标'}],1)
         self.assertEqual(bad['status'],'failed')
         self.assertEqual(session.last_run['research'],first)
-        from seekra.research import update_research
+        from seekra.search.research import update_research
         with self.assertRaisesRegex(ValueError,'局部更新'):
             update_research(session,**state(page['evidence_ref'],1))
         self.assertEqual(session.last_run['research'],first)
@@ -451,7 +451,7 @@ class ProgressUpdateTests(unittest.TestCase):
             self.assertFalse(tail['complete'], '续读末页不能称为整节一次完整交付')
             complete_tool(restored,'read_section',tail)
             deliver(restored)
-            from seekra.progress import present_progress
+            from seekra.search.progress import present_progress
             current=present_progress(restored.last_run['research'],restored)
             self.assertIsNone(current['navigation'][0]['first_undelivered'])
 

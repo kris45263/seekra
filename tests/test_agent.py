@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import httpx
 
-from seekra.display import AgentDisplay
+from seekra.terminal.display import AgentDisplay
 
 
 def reply(content=None, calls=None, finish=None):
@@ -39,8 +39,8 @@ class AgentTests(unittest.TestCase):
 
     def setUp(self):
         """明确报告尚未实现的入口，避免导入错误掩盖测试意图。"""
-        self.assertIsNotNone(importlib.util.find_spec("seekra.agent"), "尚未实现 agent.py")
-        from seekra.agent import run_agent
+        self.assertIsNotNone(importlib.util.find_spec("seekra.search.agent"), "尚未实现 agent.py")
+        from seekra.search.agent import run_agent
         self.run_agent = run_agent
 
     def run_with(self, handler):
@@ -129,7 +129,7 @@ class AgentTests(unittest.TestCase):
 
     def test_external_cancel_is_not_a_final_answer(self):
         """调用者取消后保留未完成状态，不产生最终答案。"""
-        from seekra.runtime import CancellationToken
+        from seekra.harness.runtime import CancellationToken
         cancel = CancellationToken()
         seen = []
         def handler(request):
@@ -195,8 +195,8 @@ class ConfigTests(unittest.TestCase):
 
     def test_env_file_only_and_no_variable_interpolation(self):
         """进程环境中已有的密钥不能替代空 .env，也不能通过插值导入。"""
-        self.assertIsNotNone(importlib.util.find_spec("seekra.cli"), "尚未实现 seekra.cli")
-        from seekra.cli import read_config
+        self.assertIsNotNone(importlib.util.find_spec("seekra.terminal.cli"), "尚未实现 seekra.terminal.cli")
+        from seekra.terminal.cli import read_config
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / ".env"
             with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "process-secret"}):
@@ -215,8 +215,8 @@ class VerboseTests(unittest.TestCase):
 
     def test_long_search_results_keep_full_text_behind_bounded_views(self):
         """片段预览有界，原始片段和各次获取仍完整保存。"""
-        from seekra.agent import run_agent
-        from seekra.session import Session
+        from seekra.search.agent import run_agent
+        from seekra.search.state import SearchSession as Session
         session = Session()
         snippet = "第一行\n" + "完整片段" * 500 + "\n最后一行"
         def handler(request):
@@ -244,7 +244,7 @@ class VerboseTests(unittest.TestCase):
 
     def test_failures_and_empty_search_remain_observable(self):
         """空结果、搜索错误和取消都有真实事件，错误结束不伪装成答案。"""
-        from seekra.agent import run_agent
+        from seekra.search.agent import run_agent
         for mode in ("empty", "search_error", "cancel", "model_error", "truncated"):
             with self.subTest(mode=mode):
                 err = io.StringIO()
@@ -278,7 +278,7 @@ class VerboseTests(unittest.TestCase):
 
     def test_redaction_only_changes_display(self):
         """正文意外包含密钥时仅遮蔽终端副本，不修改真实答案。"""
-        from seekra.agent import run_agent
+        from seekra.search.agent import run_agent
         err = io.StringIO()
         with httpx.Client(transport=httpx.MockTransport(lambda request: reply("回显 fake-ds"))) as client:
             with redirect_stderr(err):
@@ -289,13 +289,13 @@ class VerboseTests(unittest.TestCase):
         self.assertNotIn("fake-tv", err.getvalue())
         self.assertNotIn("问题 fake-tv", err.getvalue())
 
-    @patch('seekra.session.datetime')
-    @patch('seekra.agent.uuid4')
+    @patch('seekra.harness.session.datetime')
+    @patch('seekra.harness.loop.uuid4')
     def test_cli_verbose_keeps_requests_identical_and_separates_output(self, run_uuid, clock):
         """使用真实命令行入口及循环，仅模拟配置和 HTTP 传输。"""
         run_uuid.return_value.hex = 'fixed-verbose-run'
         clock.now.return_value.isoformat.return_value = '2026-09-30T00:00:00+00:00'
-        from seekra.cli import main
+        from seekra.terminal.cli import main
         runs = []
         for verbose in (False, True):
             requests = []
@@ -326,9 +326,9 @@ class VerboseTests(unittest.TestCase):
 
             client = httpx.Client(transport=httpx.MockTransport(handler))
             with patch("sys.argv", ["seekra", "问题", "--no-session"] + (["--verbose"] if verbose else [])), \
-                 patch("seekra.cli.read_config", return_value={"DEEPSEEK_API_KEY": "fake-ds",
+                 patch("seekra.terminal.cli.read_config", return_value={"DEEPSEEK_API_KEY": "fake-ds",
                        "DEEPSEEK_MODEL": "test-model", "TAVILY_API_KEY": "fake-tv"}), \
-                 patch("seekra.cli.httpx.Client", return_value=client), \
+                 patch("seekra.terminal.cli.httpx.Client", return_value=client), \
                  redirect_stdout(out), redirect_stderr(err):
                 status = main()
                 self.assertEqual(status, 0, err.getvalue())

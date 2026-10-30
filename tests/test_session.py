@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import httpx
 
-from seekra.agent import run_agent
+from seekra.search.agent import run_agent
 from test_agent import call, reply
 
 
@@ -20,8 +20,8 @@ class SessionTests(unittest.TestCase):
 
     def setUp(self):
         """为每项测试建立独立会话。"""
-        self.assertIsNotNone(importlib.util.find_spec("seekra.session"), "尚未实现 session.py")
-        from seekra.session import Session
+        self.assertIsNotNone(importlib.util.find_spec("seekra.search.state"), "尚未实现 session.py")
+        from seekra.search.state import SearchSession as Session
         self.session = Session()
 
     def ask(self, question, handler, session=None):
@@ -32,8 +32,8 @@ class SessionTests(unittest.TestCase):
                              session=self.session if session is None else session, thinking=False)
 
     def test_model_commit_exposes_isolated_continuation_and_reload_marks_it_missing(self):
-        from seekra.runtime import ModelResponse
-        from seekra.session import Session
+        from seekra.harness.runtime import ModelResponse
+        from seekra.search.state import SearchSession as Session
         with tempfile.TemporaryDirectory() as directory:
             session = Session.create(Path(directory))
             session.record('run_started', run_id='r', question='q', system='s', config={})
@@ -57,15 +57,15 @@ class SessionTests(unittest.TestCase):
             self.assertIsNone(restored_snapshot[-1].value)
 
     def test_failed_model_commit_does_not_publish_response_or_continuation(self):
-        from seekra.runtime import ModelResponse
-        from seekra.session import Session
+        from seekra.harness.runtime import ModelResponse
+        from seekra.search.state import SearchSession as Session
         with tempfile.TemporaryDirectory() as directory:
             session = Session.create(Path(directory))
             session.record('run_started', run_id='r', question='q', system='s', config={})
             messages = list(session.last_run['messages'])
             response = ModelResponse({'role':'assistant', 'content':'answer'}, 'stop',
                                      {'opaque':'private-continuation'})
-            with patch('seekra.session.os.fsync', side_effect=OSError('storage unavailable')):
+            with patch('seekra.harness.session.os.fsync', side_effect=OSError('storage unavailable')):
                 with self.assertRaisesRegex(OSError, 'storage unavailable'):
                     session.complete_model('r', response)
             self.assertEqual(session.last_run['messages'], messages)
@@ -94,7 +94,7 @@ class SessionTests(unittest.TestCase):
             self.assertNotIn("次模型调用", messages[0]["content"])
             self.assertEqual(self.session.messages, saved)
             return reply("功能 A 的详情")
-        with patch("seekra.agent.date") as today:
+        with patch("seekra.search.prompt.date") as today:
             today.today.return_value = date(2030, 1, 2)
             self.assertEqual(self.ask("第一项呢？", second), "功能 A 的详情")
         self.assertEqual(len(self.session.messages), 7)
@@ -125,7 +125,7 @@ class SessionTests(unittest.TestCase):
 
     def test_clear_and_new_session_are_isolated(self):
         """清空后的会话和新建会话均不继承旧内容。"""
-        from seekra.session import Session
+        from seekra.search.state import SearchSession as Session
         self.ask("旧问题", lambda request: reply("旧答案"))
         fresh = Session()
         self.assertEqual(fresh.messages, [])

@@ -4,16 +4,16 @@ import unittest
 import io
 from contextlib import redirect_stdout, redirect_stderr
 import httpx
-from seekra.deepseek import stream_chat_completion
-from seekra.models import DeepSeekModel
-from seekra.runtime import CancellationToken, RunCancelled
+from seekra.providers.deepseek_stream import stream_chat_completion
+from seekra.providers.deepseek import DeepSeekModel
+from seekra.harness.runtime import CancellationToken, RunCancelled
 from test_deepseek_stream import ByteStream, event, DONE
 
 
 class UsageTests(unittest.TestCase):
     def test_cli_summary_accepts_optional_and_unknown_reasoning_usage(self):
-        from seekra.cli import run_question
-        from seekra.session import Session
+        from seekra.terminal.cli import run_question
+        from seekra.search.state import SearchSession as Session
         session = Session()
         for reasoning in (None, None, 6, None):
             with self.subTest(reasoning=reasoning, prior_calls=session.usage_totals()['calls']):
@@ -33,8 +33,8 @@ class UsageTests(unittest.TestCase):
                 self.assertEqual(err.getvalue().count('本次 token'), 1)
 
     def test_partial_usage_keeps_known_input_and_does_not_invent_output(self):
-        from seekra.session import Session
-        from seekra.display import AgentDisplay
+        from seekra.search.state import SearchSession as Session
+        from seekra.terminal.display import AgentDisplay
         s=Session();before=s.usage_totals()
         s.record('run_started',run_id='r',question='q',system='s',config={})
         s.record('model_started',run_id='r',round=1,system='s')
@@ -47,8 +47,8 @@ class UsageTests(unittest.TestCase):
         self.assertNotIn('服务未提供',err.getvalue())
 
     def test_http_error_keeps_same_reason_in_user_output_and_records(self):
-        from seekra.cli import run_question
-        from seekra.session import Session
+        from seekra.terminal.cli import run_question
+        from seekra.search.state import SearchSession as Session
         for code in (401,429,500):
             s=Session();err=io.StringIO()
             with httpx.Client(transport=httpx.MockTransport(lambda r:httpx.Response(code))) as client, \
@@ -61,8 +61,8 @@ class UsageTests(unittest.TestCase):
                 self.assertNotIn('检查 .env',err.getvalue())
 
     def test_cli_reports_usage_once_after_all_model_rounds(self):
-        from seekra.cli import run_question
-        from seekra.session import Session
+        from seekra.terminal.cli import run_question
+        from seekra.search.state import SearchSession as Session
         from test_agent import call
         for fail in (False, True):
             count = 0
@@ -105,7 +105,7 @@ class UsageTests(unittest.TestCase):
         self.assertTrue(stream.closed)
 
     def test_missing_and_invalid_usage_are_not_fabricated(self):
-        from seekra.models import normalize_usage
+        from seekra.providers.usage import normalize_usage
         self.assertEqual(normalize_usage({})['input_tokens'],None)
         self.assertEqual(normalize_usage({'prompt_tokens':True})['input_tokens'],None)
         self.assertEqual(normalize_usage({'prompt_tokens':100,'prompt_cache_hit_tokens':101})['cache_hit_rate'],None)

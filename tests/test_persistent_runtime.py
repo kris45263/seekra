@@ -10,8 +10,8 @@ import unittest
 
 import httpx
 
-from seekra.agent import run_agent
-from seekra.session import Session
+from seekra.search.agent import run_agent
+from seekra.search.state import SearchSession as Session
 from test_agent import call, reply
 
 
@@ -107,16 +107,16 @@ class PersistentRuntimeTests(unittest.TestCase):
             run_agent(None,client=client,model='other',deepseek_api_key='d',tavily_api_key='t',session=restored,resume=True)
 
     def test_process_crash_after_final_response_does_not_request_model_again(self):
-        from seekra.agent import execute_run
-        from seekra.tools import ToolRegistry
+        from seekra.search.agent import execute_run
+        from seekra.harness.tools import ToolRegistry
         directory = Path(self.tmp.name) / 'crash'
         script = '''
 import os, sys
 from pathlib import Path
-from seekra.agent import execute_run
-from seekra.runtime import ModelResponse
-from seekra.session import Session
-from seekra.tools import ToolRegistry
+from seekra.search.agent import execute_run
+from seekra.harness.runtime import ModelResponse
+from seekra.search.state import SearchSession as Session
+from seekra.harness.tools import ToolRegistry
 class Model:
     identity = 'test:crash'
     def generate(self, *args, **kwargs):

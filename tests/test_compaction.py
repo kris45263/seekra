@@ -6,8 +6,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from seekra.runtime import CancellationToken, ModelResponse
-from seekra.session import Session
+from seekra.harness.runtime import CancellationToken, ModelResponse
+from seekra.search.state import SearchSession as Session
 from test_documents import complete_tool
 
 
@@ -34,12 +34,12 @@ def seed(session, count=12):
 
 class CompactionTests(unittest.TestCase):
     def prepare(self, session, model, budget=9000):
-        from seekra.compaction import prepare_model_turn
+        from seekra.search.compaction import prepare_model_turn
         return prepare_model_turn(session.last_run['messages'], [], session, budget, model,
                                   cancel=CancellationToken())
 
     def test_pressure_without_progress_compacts_and_preserves_latest_interaction(self):
-        from seekra.checkpoint import prepare_context
+        from seekra.search.context import prepare_context
         session = Session()
         seed(session)
         model = SummaryModel()
@@ -60,7 +60,7 @@ class CompactionTests(unittest.TestCase):
         self.assertEqual(model.requests[0][1], [], '摘要请求没有工具权限')
 
     def test_compaction_reload_and_provider_rebuild_preserve_summary_without_redelivery(self):
-        from seekra.provider_context import _recovery_snapshot, prepare_model_context
+        from seekra.search.recovery import _recovery_snapshot, prepare_model_context
         with tempfile.TemporaryDirectory() as directory:
             session = Session.create(Path(directory))
             seed(session)
@@ -111,8 +111,8 @@ class CompactionTests(unittest.TestCase):
         self.assertFalse(session.last_run['pending'])
 
     def test_cancellation_and_oversized_summary_do_not_replace_old_context(self):
-        from seekra.compaction import prepare_model_turn
-        from seekra.runtime import RunCancelled
+        from seekra.search.compaction import prepare_model_turn
+        from seekra.harness.runtime import RunCancelled
         session = Session()
         seed(session)
         cancel = CancellationToken()
@@ -130,7 +130,7 @@ class CompactionTests(unittest.TestCase):
         self.assertIsNone(other.last_run.get('provider_window'))
 
     def test_failed_summary_over_hard_limit_pauses_without_discarding_history(self):
-        from seekra.context import ContextLimit
+        from seekra.search.context import ContextLimit
         session = Session()
         seed(session)
         before = deepcopy(session.last_run['messages'])
@@ -140,8 +140,8 @@ class CompactionTests(unittest.TestCase):
         self.assertIsNone(session.last_run.get('provider_window'))
 
     def test_cancel_during_final_projection_keeps_previous_window(self):
-        from seekra.compaction import prepare_model_turn
-        from seekra.runtime import RunCancelled
+        from seekra.search.compaction import prepare_model_turn
+        from seekra.harness.runtime import RunCancelled
         session = Session()
         seed(session)
         cancel = CancellationToken()
@@ -169,7 +169,7 @@ class CompactionTests(unittest.TestCase):
         self.assertEqual(session.usage_totals()['calls'], 2)
 
     def test_snapshot_removed_from_actual_input_is_not_resurrected_for_summary(self):
-        from seekra.research import update_research
+        from seekra.search.research import update_research
         session = Session()
         seed(session, count=2)
         session.last_run['provider_window'] = {'version': 1, 'start': 2, 'reason': 'missing_continuation',

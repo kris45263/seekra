@@ -7,8 +7,8 @@ from contextlib import redirect_stderr
 from unittest.mock import Mock
 
 import httpx
-from seekra.tools import execute_tool, tool_definitions
-from seekra.display import AgentDisplay
+from seekra.search.tools import execute_tool, tool_definitions
+from seekra.terminal.display import AgentDisplay
 
 
 class SearchControlTests(unittest.TestCase):

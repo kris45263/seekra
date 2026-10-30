@@ -10,9 +10,9 @@ import unittest
 from unittest.mock import patch
 
 import httpx
-from seekra.cli import main
-from seekra.input import ReplInput
-from seekra.session import Session
+from seekra.terminal.cli import main
+from seekra.terminal.input import ReplInput
+from seekra.search.state import SearchSession as Session
 from prompt_toolkit.input.defaults import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 from test_agent import reply
@@ -20,9 +20,9 @@ from test_agent import reply
 
 class CliSessionTests(unittest.TestCase):
     def test_final_notification_and_content_errors_have_distinct_cli_outcomes(self):
-        from seekra.cli import run_question
-        from seekra.display import AgentDisplay
-        from seekra.runtime import ContentOutputError
+        from seekra.terminal.cli import run_question
+        from seekra.terminal.display import AgentDisplay
+        from seekra.harness.runtime import ContentOutputError
         config = {'DEEPSEEK_API_KEY':'fake', 'TAVILY_API_KEY':'fake', 'DEEPSEEK_MODEL':'test'}
         original_event = AgentDisplay.event
         for phase in ('final_answer', 'content'):
@@ -56,8 +56,8 @@ class CliSessionTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 err=io.StringIO()
                 with patch('sys.argv',['seekra','--session-dir',directory,*args]), \
-                     patch('seekra.cli.read_config',return_value={}), \
-                     patch('seekra.cli.ReplInput.read',side_effect=commands), \
+                     patch('seekra.terminal.cli.read_config',return_value={}), \
+                     patch('seekra.terminal.cli.ReplInput.read',side_effect=commands), \
                      patch('httpx.Client.send',side_effect=AssertionError('空态不能联网')), \
                      redirect_stdout(io.StringIO()),redirect_stderr(err):
                     self.assertEqual(main(),0)
@@ -65,7 +65,7 @@ class CliSessionTests(unittest.TestCase):
                 self.assertNotIn('失败',err.getvalue())
 
     def test_storage_failure_does_not_claim_records_are_saved_or_offer_continue(self):
-        from seekra.cli import run_question
+        from seekra.terminal.cli import run_question
         session=Session();record=session.record
         def fail(kind,**data):
             if kind=='model_completed':
@@ -88,9 +88,9 @@ class CliSessionTests(unittest.TestCase):
             return httpx.Response(500)
         err=io.StringIO()
         with patch('sys.argv',['seekra','--repl','--no-session']), \
-             patch('seekra.cli.read_config',return_value=config), \
-             patch('seekra.cli.ReplInput.read',side_effect=['问题','/continue','/exit']), \
-             patch('seekra.cli.httpx.Client',return_value=httpx.Client(transport=httpx.MockTransport(fail))), \
+             patch('seekra.terminal.cli.read_config',return_value=config), \
+             patch('seekra.terminal.cli.ReplInput.read',side_effect=['问题','/continue','/exit']), \
+             patch('seekra.terminal.cli.httpx.Client',return_value=httpx.Client(transport=httpx.MockTransport(fail))), \
              redirect_stdout(io.StringIO()),redirect_stderr(err):
             self.assertEqual(main(),0)
         self.assertIn('恢复配置与原任务不同',err.getvalue())
@@ -164,18 +164,18 @@ class CliSessionTests(unittest.TestCase):
                 return 0
             config={'DEEPSEEK_API_KEY':'fake-ds','DEEPSEEK_MODEL':'test','TAVILY_API_KEY':'fake-tv'}
             with patch('sys.argv',['seekra','--session-dir',directory,'--session',session.id,'--repl']), \
-                 patch('seekra.cli.read_config',return_value=config), \
-                 patch('seekra.cli.ReplInput',return_value=editor), \
+                 patch('seekra.terminal.cli.read_config',return_value=config), \
+                 patch('seekra.terminal.cli.ReplInput',return_value=editor), \
                  patch.object(editor,'run',side_effect=lambda handle: asyncio.run(drive(handle))), \
-                 patch('seekra.cli.httpx.Client',return_value=httpx.Client(transport=httpx.MockTransport(respond))), \
+                 patch('seekra.terminal.cli.httpx.Client',return_value=httpx.Client(transport=httpx.MockTransport(respond))), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 self.assertEqual(main(),0)
 
     def test_empty_resume_is_command_feedback_without_a_failed_answer(self):
         err = io.StringIO()
         with patch('sys.argv',['seekra','--repl','--no-session']), \
-             patch('seekra.cli.read_config',return_value={'DEEPSEEK_API_KEY':'fake','TAVILY_API_KEY':'fake','DEEPSEEK_MODEL':'test'}), \
-             patch('seekra.cli.ReplInput.read',side_effect=['/continue','/exit']), \
+             patch('seekra.terminal.cli.read_config',return_value={'DEEPSEEK_API_KEY':'fake','TAVILY_API_KEY':'fake','DEEPSEEK_MODEL':'test'}), \
+             patch('seekra.terminal.cli.ReplInput.read',side_effect=['/continue','/exit']), \
              patch('httpx.Client.send',side_effect=AssertionError('命令不能联网')), \
              redirect_stdout(io.StringIO()), redirect_stderr(err):
             self.assertEqual(main(),0)
@@ -195,8 +195,8 @@ class CliSessionTests(unittest.TestCase):
             for args, commands in ((['--repl'],['/resume','/exit']), (['--resume'],['/exit'])):
                 out, err = io.StringIO(), io.StringIO()
                 with patch('sys.argv',['seekra','--session-dir',directory,*args]), \
-                     patch('seekra.cli.read_config',return_value={}), \
-                     patch('seekra.cli.ReplInput.read',side_effect=commands), \
+                     patch('seekra.terminal.cli.read_config',return_value={}), \
+                     patch('seekra.terminal.cli.ReplInput.read',side_effect=commands), \
                      patch('httpx.Client.send',side_effect=AssertionError('恢复对话不能调用模型')), \
                      redirect_stdout(out),redirect_stderr(err):
                     self.assertEqual(main(),0)
@@ -210,8 +210,8 @@ class CliSessionTests(unittest.TestCase):
             config={'DEEPSEEK_API_KEY':'fake-ds','DEEPSEEK_MODEL':'test','TAVILY_API_KEY':'fake-tv'}
             def invoke(args,handler):
                 out,err=io.StringIO(),io.StringIO()
-                with patch('sys.argv',['seekra','--session-dir',directory,*args]),patch('seekra.cli.read_config',return_value=config),\
-                     patch('seekra.cli.httpx.Client',return_value=httpx.Client(transport=httpx.MockTransport(handler))),\
+                with patch('sys.argv',['seekra','--session-dir',directory,*args]),patch('seekra.terminal.cli.read_config',return_value=config),\
+                     patch('seekra.terminal.cli.httpx.Client',return_value=httpx.Client(transport=httpx.MockTransport(handler))),\
                      redirect_stdout(out),redirect_stderr(err):
                     self.assertEqual(main(),0,err.getvalue())
                 return out.getvalue(),err.getvalue()
@@ -229,7 +229,7 @@ class CliSessionTests(unittest.TestCase):
 
     def test_no_session_flag_does_not_write_records(self):
         with tempfile.TemporaryDirectory() as directory, patch('sys.argv',['seekra','--session-dir',directory,'--no-session','--repl']),\
-             patch('seekra.cli.read_config',return_value={}),patch('seekra.cli.ReplInput.read',side_effect=['/exit']),\
+             patch('seekra.terminal.cli.read_config',return_value={}),patch('seekra.terminal.cli.ReplInput.read',side_effect=['/exit']),\
              redirect_stdout(io.StringIO()),redirect_stderr(io.StringIO()):
             self.assertEqual(main(),0)
             self.assertEqual(list(Path(directory).iterdir()),[])
