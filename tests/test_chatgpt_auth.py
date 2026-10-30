@@ -16,8 +16,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 class ChatGPTAuthTests(unittest.TestCase):
     def setUp(self):
-        self.assertIsNotNone(importlib.util.find_spec('seekra.chatgpt_auth'), '需要独立的订阅授权入口')
-        self.module=importlib.import_module('seekra.chatgpt_auth')
+        self.assertIsNotNone(importlib.util.find_spec('seekra.providers.chatgpt_auth'), '需要独立的订阅授权入口')
+        self.module=importlib.import_module('seekra.providers.chatgpt_auth')
 
     def test_state_identity_permission_and_protected_storage(self):
         key=rsa.generate_private_key(public_exponent=65537,key_size=2048)

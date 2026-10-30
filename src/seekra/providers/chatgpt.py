@@ -2,9 +2,9 @@
 from copy import deepcopy
 import json
 
-from .deepseek import _sse_data, StreamProtocolError
-from .models import normalize_usage
-from .runtime import ModelResponse
+from seekra.providers.sse import iter_sse_data, StreamProtocolError
+from seekra.providers.usage import normalize_usage
+from seekra.harness.runtime import ModelResponse
 
 
 class ChatGPTModel:
@@ -71,7 +71,7 @@ class ChatGPTModel:
             if media_type and media_type != 'text/event-stream':
                 raise StreamProtocolError('OpenAI 未返回 SSE 流。')
             response.encoding = 'utf-8'
-            for data in _sse_data(response):
+            for data in iter_sse_data(response):
                 cancel.check()
                 try:
                     event = json.loads(data)
@@ -168,23 +168,3 @@ class ChatGPTModel:
             {'kind':'openai_responses','items':reasoning} if reasoning else None,
             {'configured_model':self.name,'response_model':response.get('model'),
              'reasoning_effort':self.reasoning_effort,'auth_mode':'chatgpt_plan'})
-
-
-def run_chatgpt(question, *, client, tavily_api_key, auth, session, resume=False,
-                cancel=None, on_content=None, on_event=None, max_context_chars=120000):
-    from .agent import execute_run
-    from .runtime import CancellationToken
-    from .tools import default_registry
-    cancel = cancel or CancellationToken()
-    session.secrets = tuple(set(session.secrets + (tavily_api_key,)))
-    def token():
-        value = auth.access_token(client)
-        session.secrets = tuple(set(session.secrets + (value,)))
-        return value
-    result = execute_run(question, model=ChatGPTModel(client, token),
-        registry=default_registry(client, tavily_api_key, session, cancel=cancel), session=session,
-        resume=resume, cancel=cancel, on_content=on_content, on_event=on_event,
-        max_context_chars=max_context_chars)
-    if result.cause is not None:
-        raise result.cause
-    return result.answer

@@ -195,41 +195,45 @@ uv run seekra --provider chatgpt --repl
 
 ## 项目结构
 
+代码按执行机制、搜索能力、模型协议和终端产品组织。入口先组装搜索任务，再交给通用循环执行。
+
 ```text
-pyproject.toml
-README.md
-src/
-└─ seekra/
-   ├─ __init__.py
-   ├─ __main__.py    python -m seekra 入口
-   ├─ cli.py         配置、命令行与 REPL
-   ├─ input.py       持续编辑区、粘贴与输入调度
-   ├─ windows_input.py  Windows 键盘协议适配
-   ├─ agent.py       任务循环、工具调度与结束状态
-   ├─ runtime.py     模型与运行接口、取消令牌
-   ├─ models.py      DeepSeek 适配与用量归一化
-   ├─ chatgpt.py     ChatGPT 订阅模型适配
-   ├─ chatgpt_auth.py  订阅授权与受保护凭据
-   ├─ compaction.py  独立压缩与窗口提交
-   ├─ checkpoint.py  软预算准备与旧正文外置
-   ├─ provider_context.py  供应商续接字段与业务上下文重建
-   ├─ context.py     上下文投影和历史索引
-   ├─ deepseek.py    SSE 接收、正文与工具调用组装
-   ├─ tools.py       工具定义、参数校验与分派
-   ├─ retrieval.py   搜索与页面内容获取
-   ├─ documents.py   正文快照、本地读取、裁剪后的范围与续读
-   ├─ delivery.py    整批工具结果预算与正文交付统计
-   ├─ research.py    研究进展工具参数描述
-   ├─ answers.py     可选显式终稿校验与交付
-   ├─ progress.py    进展校验、局部合并、稳定编号与阅读导航
-   ├─ operations.py  公共操作结果约定
-   ├─ display.py     终端展示
-   └─ session.py     执行记录、会话恢复与模型续接缓存
-tests/             离线工程回归
-docs/              开发者知识库
-evals/             真实案例与实验证据
-scripts/           开发和实验入口
+src/seekra/
+├─ __main__.py          python -m seekra
+├─ harness/            通用循环、会话提交、模型/工具接口、基础请求策略
+│  ├─ loop.py          execute_run
+│  ├─ session.py       Session：执行事实、运行状态、锁与恢复
+│  ├─ context.py       AgentDefinition、PreparedRequest、基础预算
+│  ├─ tools.py         ToolRegistry、ToolResult
+│  ├─ runtime.py       模型与取消契约
+│  └─ operations.py    工具失败结果约定
+├─ search/             搜索能力与组装
+│  ├─ agent.py         run_search，DeepSeek / ChatGPT 搜索入口
+│  ├─ state.py         SearchSession：搜索状态的准备与重放
+│  ├─ prompt.py        搜索及摘要指令
+│  ├─ tools.py         搜索、阅读、研究、历史工具绑定
+│  ├─ retrieval.py     Tavily 获取
+│  ├─ context.py       资料投影、正文外置、请求预算
+│  ├─ recovery.py      供应商续接缺失后的搜索恢复
+│  ├─ compaction.py    独立摘要和窗口提交
+│  ├─ history.py       历史回读与当时证据归属
+│  ├─ research.py      研究工具参数
+│  ├─ progress.py      研究状态更新和阅读导航
+│  ├─ answers.py       可选显式终稿
+│  └─ documents/       store：快照/阅读；views：交付视图；delivery：批次预算；text_windows：原文窗口
+├─ providers/          deepseek、deepseek_stream、chatgpt、chatgpt_auth；共用 sse、usage
+├─ terminal/           cli、display、input、windows_input
+├─ agent.py            已公开 Search 入口的兼容导出
+└─ session.py          已公开 Search Session 名称的兼容导出
+tests/                 确定性工程回归
+docs/                  架构、开发及验证说明
+evals/                 可复用案例与精选证据
+scripts/               开发与验收入口
 ```
+
+新代码从实际模块导入。普通工具任务使用 `harness.loop.execute_run`，显式提供 `AgentDefinition`、Model、ToolRegistry 和通用 Session；搜索任务使用 `search.agent` 与 `SearchSession`。通用层不导入搜索或终端，也不会自动加载搜索提示和工具。原有 `seekra.agent.run_agent`、`seekra.session.Session` 保持搜索语义，其余旧内部路径已迁移。
+
+沿一次真实搜索运行阅读代码，见 [架构中的运行链路](docs/architecture.md#一次任务如何执行)。
 
 ## 帮助与参考
 

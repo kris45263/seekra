@@ -5,10 +5,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from seekra.delivery import fit_latest_batch, latest_batch_indices
-from seekra.context import build_context, ContextLimit
-from seekra.delivery import remember_delivery
-from seekra.session import Session
+from seekra.search.documents.delivery import fit_latest_batch, latest_batch_indices
+from seekra.search.context import build_context, ContextLimit
+from seekra.search.documents.delivery import remember_delivery
+from seekra.search.state import SearchSession as Session
 from test_documents import add_page
 
 

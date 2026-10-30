@@ -5,7 +5,7 @@ import sys
 import time
 import unicodedata
 
-from .runtime import ContentOutputError
+from seekra.harness.runtime import ContentOutputError
 
 
 def display_text(value: object, secrets: tuple[str, ...] = (), *, single_line: bool = False) -> str:

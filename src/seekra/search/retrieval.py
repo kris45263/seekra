@@ -10,8 +10,8 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from .operations import OperationResult, failure
-from .runtime import RunCancelled
+from seekra.harness.operations import OperationResult, failure
+from seekra.harness.runtime import RunCancelled
 
 PAGE_CHARS = 24000
 

@@ -1,14 +1,15 @@
 """模型可调用的工具定义与参数分派，获取实现和终端展示分别维护。"""
 
 from copy import deepcopy
+from seekra.harness.tools import ToolRegistry, ToolResult
 import json
 
 import httpx
 
-from .operations import failure
-from .retrieval import read_page, tavily_search
-from .documents import READ_CHARS
-from .research import DESCRIPTION, PROPERTIES, LEGACY_PROPERTIES, update_research
+from seekra.harness.operations import failure
+from seekra.search.retrieval import read_page, tavily_search
+from seekra.search.documents.store import READ_CHARS
+from seekra.search.research import DESCRIPTION, PROPERTIES, LEGACY_PROPERTIES, update_research
 
 
 _LEGACY_TOOLS = [
@@ -123,56 +124,21 @@ def execute_tool(tool_call: dict, *, client: httpx.Client, api_key: str,
     return json.dumps(result, ensure_ascii=False)
 
 
-class ToolRegistry:
-    """统一工具集合；执行核心不依赖 provider、工具名称或接入方式。"""
-    def __init__(self):
-        self._tools = {}
-        self._final_outputs = {}
-
-    def register(self, definition, execute, *, final_output=None):
-        name = definition['function']['name']
-        if name in self._tools:
-            raise ValueError(f'工具重复：{name}')
-        if final_output is not None and (not isinstance(final_output,str) or not final_output):
-            raise ValueError('终稿字段需要非空字符串')
-        self._tools[name] = (deepcopy(definition), execute)
-        if final_output is not None:
-            self._final_outputs[name] = final_output
-
-    @property
-    def final_outputs(self):
-        return dict(self._final_outputs)
-
-    def final_text(self, name, output):
-        field = self._final_outputs.get(name)
-        if field is None:
-            return None
-        payload = json.loads(output)
-        if not isinstance(payload,dict) or payload.get('status')!='success':
-            return None
-        answer = payload.get(field)
-        if not isinstance(answer,str) or not answer.strip():
-            raise ValueError('终稿工具成功结果没有有效正文')
-        return answer
-
-    @property
-    def definitions(self):
-        return [deepcopy(definition) for definition, _ in self._tools.values()]
-
-    def execute(self, call, pages, known):
-        name = call['function']['name']
-        if name not in self._tools:
-            return json.dumps(failure(name,'invalid_arguments',f'未注册工具：{name}。请从当前工具列表选择。'),ensure_ascii=False)
-        return self._tools[name][1](call, pages, known)
-
-
 def default_registry(client, api_key, session, structured=False, definitions=None, *, cancel=None):
     """现有工具作为适配器注册；历史读取受 Session 的最近 reset 边界约束。"""
-    from .context import history_index, read_history
+    from seekra.search.history import history_index, read_history
     registry = ToolRegistry()
-    def execute(call, pages, known):
-        return execute_tool(call,client=client,api_key=api_key,pages=pages,
-                            structured_think=structured,known_operations=known,cancel=cancel)
+    def execute(call):
+        run = session.last_run or {}
+        before = run.get('pages', session.pages)
+        pages = deepcopy(before)
+        known = {c['id']: c['function']['name'] for m in run.get('messages', [])
+                 for c in m.get('tool_calls') or []}
+        content = execute_tool(call, client=client, api_key=api_key, pages=pages,
+                               structured_think=structured, known_operations=known, cancel=cancel)
+        updates = {url: pages.get(url) for url in set(before) | set(pages)
+                   if before.get(url) != pages.get(url)}
+        return ToolResult(content, {'page_updates': updates})
     for definition in definitions if definitions is not None else tool_definitions(structured):
         registry.register(definition, execute)
     history_tools = [
@@ -208,7 +174,7 @@ def default_registry(client, api_key, session, structured=False, definitions=Non
     for name, description, properties, required, reader in history_tools:
         definition={'type':'function','function':{'name':name,'description':description,
                     'parameters':{'type':'object','properties':properties,'required':required,'additionalProperties':False}}}
-        def handler(call, pages, known, reader=reader, properties=properties, required=required, name=name):
+        def handler(call, reader=reader, properties=properties, required=required, name=name):
             try:
                 args=json.loads(call['function']['arguments'])
                 legacy = name=='update_research' and isinstance(args,dict) and set(args)==set(LEGACY_PROPERTIES)

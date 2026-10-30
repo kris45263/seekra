@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import httpx
 
-from seekra.retrieval import PAGE_CHARS, read_page, tavily_search
-from seekra.tools import TOOLS, tool_definitions, execute_tool
+from seekra.search.retrieval import PAGE_CHARS, read_page, tavily_search
+from seekra.search.tools import TOOLS, tool_definitions, execute_tool
 from test_agent import call, reply
 
 
@@ -113,7 +113,7 @@ class RetrievalEdgeTests(unittest.TestCase):
 
     def test_cli_uses_progress_without_legacy_think_flag(self):
         """默认集合统一到进展；旧 CLI 开关不能静默改变新协议。"""
-        from seekra.cli import main
+        from seekra.terminal.cli import main
         for enabled in (False, True):
             def handler(request):
                 body = json.loads(request.content)
@@ -123,8 +123,8 @@ class RetrievalEdgeTests(unittest.TestCase):
                 return reply("答案")
             client = httpx.Client(transport=httpx.MockTransport(handler))
             with patch("sys.argv", ["seekra", "问题", "--no-session"] + (["--structured-think"] if enabled else [])), \
-                 patch("seekra.cli.read_config", return_value={"DEEPSEEK_API_KEY": "d", "DEEPSEEK_MODEL": "m", "TAVILY_API_KEY": "t"}), \
-                 patch("seekra.cli.httpx.Client", return_value=client), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                 patch("seekra.terminal.cli.read_config", return_value={"DEEPSEEK_API_KEY": "d", "DEEPSEEK_MODEL": "m", "TAVILY_API_KEY": "t"}), \
+                 patch("seekra.terminal.cli.httpx.Client", return_value=client), redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 if enabled:
                     with self.assertRaises(SystemExit) as stopped: main()
                     self.assertEqual(stopped.exception.code,2)

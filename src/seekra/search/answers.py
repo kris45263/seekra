@@ -3,8 +3,8 @@ from copy import deepcopy
 import json
 import re
 
-from .documents import canonical, READ_CHARS
-from .operations import failure
+from seekra.search.documents.store import canonical, READ_CHARS
+from seekra.harness.operations import failure
 
 
 NAME='submit_answer'
@@ -324,7 +324,7 @@ def compile_answer(session, draft):
 
 def register_answer_tool(registry,session):
     """显式嵌入调用入口；CLI 和 default_registry 暂不启用。"""
-    def execute(call,pages,known):
+    def execute(call):
         try:
             result=compile_answer(session,json.loads(call['function']['arguments']))
         except (ValueError,TypeError) as exc:

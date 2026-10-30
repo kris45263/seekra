@@ -4,7 +4,7 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-from seekra import display
+from seekra.terminal import display
 
 
 class Output(io.StringIO):

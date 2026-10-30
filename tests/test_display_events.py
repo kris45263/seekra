@@ -5,9 +5,9 @@ import json
 import unittest
 from contextlib import redirect_stdout, redirect_stderr
 
-from seekra.display import AgentDisplay, session_transcript
-from seekra.agent import run_agent
-from seekra.session import Session
+from seekra.terminal.display import AgentDisplay, session_transcript
+from seekra.search.agent import run_agent
+from seekra.search.state import SearchSession as Session
 import httpx
 
 from test_agent import reply, call

@@ -10,7 +10,7 @@ class SearchResultTests(unittest.TestCase):
 
     def normalize(self, response):
         """调用待实现的结果处理入口。"""
-        module = importlib.import_module("seekra.retrieval")
+        module = importlib.import_module("seekra.search.retrieval")
         self.assertTrue(hasattr(module, "normalize_search_results"), "尚未实现结果校验")
         return module.normalize_search_results("查询", response)
 

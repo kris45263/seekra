@@ -1,5 +1,5 @@
 """研究进展工具的参数描述；更新与校验由 progress 实现。"""
-from .progress import OP_FIELDS, update_research
+from seekra.search.progress import OP_FIELDS, update_research
 
 REFERENCE = {'type': 'object', 'properties': {
     'source_id': {'type': 'string'}, 'document_id': {'type': 'string'},

@@ -6,13 +6,14 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from seekra.agent import execute_run
-from seekra.context import read_history
-from seekra.display import session_transcript
-from seekra.runtime import ModelResponse
-from seekra.session import Session
-from seekra.tools import ToolRegistry, default_registry
-from seekra.delivery import remember_delivery
+from seekra.search.agent import execute_run
+from seekra.search.history import read_history
+from seekra.terminal.display import session_transcript
+from seekra.harness.runtime import ModelResponse
+from seekra.search.state import SearchSession as Session
+from seekra.harness.tools import ToolRegistry
+from seekra.search.tools import default_registry
+from seekra.search.documents.delivery import remember_delivery
 from test_agent import call
 from test_documents import add_page, begin
 from test_research import deliver
@@ -107,7 +108,7 @@ class AnswerSubmissionTests(unittest.TestCase):
         self.assertEqual(result.answer,'终稿');self.assertEqual(len(finished),1)
 
     def answers(self):
-        try:return importlib.import_module('seekra.answers')
+        try:return importlib.import_module('seekra.search.answers')
         except ModuleNotFoundError:self.fail('需要受控原文与判断/建议的终稿编译器')
 
     def draft(self, ref, quote='Pro required.'):
@@ -146,7 +147,7 @@ class AnswerSubmissionTests(unittest.TestCase):
         api.register_answer_tool(registry,session)
         session.last_run['config']['final_outputs']=registry.final_outputs
         session.last_run['progress_stage']={'base_revision':0}
-        from seekra.checkpoint import prepare_context
+        from seekra.search.context import prepare_context
         _, tools, _, _ = prepare_context(session.last_run['messages'], registry.definitions, session, 120000)
         self.assertIn('submit_answer', {d['function']['name'] for d in tools})
 
@@ -292,7 +293,7 @@ class AnswerSubmissionTests(unittest.TestCase):
             evidence.append({'reference':read['evidence_ref'],'quote':'Pro required.'})
         registry=default_registry(None,'fake',session);api.register_answer_tool(registry,session)
         draft=self.draft(evidence[0]['reference']);draft['evidence']=evidence
-        result=json.loads(registry.execute(call('submit_answer',draft),{},{}))
+        result=json.loads(registry.execute(call('submit_answer',draft)).content)
         self.assertEqual(result['status'],'failed')
         self.assertIn('display_budget',result,'预算失败应提供实际大小和需减少量')
         self.assertGreater(result['display_budget']['characters'],12000)
@@ -450,7 +451,7 @@ class AnswerSubmissionTests(unittest.TestCase):
         registry=default_registry(None,'fake',session);api.register_answer_tool(registry,session)
         session.last_run['config']['final_outputs']=registry.final_outputs
         session.last_run['progress_stage']={'base_revision':0}
-        from seekra.checkpoint import prepare_context
+        from seekra.search.context import prepare_context
         messages,tools,info,system=prepare_context(session.last_run['messages'],registry.definitions,session,120000)
         self.assertEqual(tools, registry.definitions)
         self.assertIsNone(info['progress_stage'])

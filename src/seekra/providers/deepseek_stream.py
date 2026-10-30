@@ -1,33 +1,13 @@
 """DeepSeek 流式响应：正文立即通知，工具调用完整组装后才返回。"""
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from contextlib import nullcontext
 import json
 
 import httpx
 
 
-class StreamProtocolError(RuntimeError):
-    """只携带本地说明，不携带模型原始数据的协议错误。"""
-
-
-def _sse_data(response: httpx.Response) -> Iterator[str]:
-    """以空行完成事件，支持多行 data、注释和网络任意分片。"""
-    data = []
-    for line in response.iter_lines():
-        if line == "":
-            if data:
-                yield "\n".join(data)
-                data.clear()
-            continue
-        if line.startswith(":"):
-            continue
-        field, separator, value = line.partition(":")
-        if field == "data":
-            data.append(value.removeprefix(" ") if separator else "")
-    # 未以空行终结的事件不是完整事件，尤其不能接受残缺的 DONE。
-    if data:
-        raise StreamProtocolError("DeepSeek 流事件未完整结束。")
+from .sse import iter_sse_data, StreamProtocolError
 
 
 def stream_chat_completion(
@@ -76,7 +56,7 @@ def stream_chat_completion(
         if media != "text/event-stream":
             raise StreamProtocolError("DeepSeek 未返回 SSE 流。")
         response.encoding = "utf-8"
-        for data in _sse_data(response):
+        for data in iter_sse_data(response):
             if cancel is not None:
                 cancel.check()
             if data == "[DONE]":

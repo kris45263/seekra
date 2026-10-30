@@ -13,9 +13,10 @@ import sys
 
 import httpx
 
-from seekra.agent import execution_error_message, run_agent
-from seekra.cli import read_config
-from seekra.session import Session
+from seekra.harness.loop import execution_error_message
+from seekra.search.agent import run_agent
+from seekra.terminal.cli import read_config
+from seekra.search.state import SearchSession as Session
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -182,8 +183,8 @@ def run_case(case_name, output, *, seed=None, max_context_chars=120000, thinking
     config = read_config(ROOT / '.env')
     requests, trace = [], []
     started = time.monotonic()
-    source_hashes = {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
-                     for p in (ROOT / 'src/seekra').glob('*.py')}
+    source_hashes = {p.relative_to(ROOT / 'src/seekra').as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                     for p in (ROOT / 'src/seekra').rglob('*.py')}
     with tempfile.TemporaryDirectory(prefix='seekra-doc-check-') as directory, httpx.Client() as remote:
         if seed is None:
             session = Session.create(Path(directory))

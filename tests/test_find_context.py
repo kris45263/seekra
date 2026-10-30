@@ -1,8 +1,8 @@
 """查找交付保留原文结构、条件、准确引用和有界回读，不使用模型服务。"""
 import unittest
 
-from seekra.session import Session
-from seekra.delivery import remember_delivery
+from seekra.search.state import SearchSession as Session
+from seekra.search.documents.delivery import remember_delivery
 from test_documents import add_page
 
 

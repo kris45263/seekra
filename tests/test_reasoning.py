@@ -6,9 +6,9 @@ import unittest
 
 import httpx
 
-from seekra.agent import run_agent
-from seekra.runtime import CancellationToken
-from seekra.session import Session
+from seekra.search.agent import run_agent
+from seekra.harness.runtime import CancellationToken
+from seekra.search.state import SearchSession as Session
 from test_agent import call
 from test_deepseek_stream import ByteStream, event, DONE
 
@@ -72,9 +72,9 @@ class ReasoningTests(unittest.TestCase):
                 self.assertEqual(session.last_run['status'], 'completed')
 
     def test_recovery_directory_keeps_other_original_sections_as_navigation_only(self):
-        from seekra.provider_context import _recovery_snapshot
-        from seekra.checkpoint import present_actions
-        from seekra.delivery import remember_delivery
+        from seekra.search.recovery import _recovery_snapshot
+        from seekra.search.context import present_actions
+        from seekra.search.documents.delivery import remember_delivery
         from test_documents import add_page
         session=Session();page=add_page(session,'# Guide\n\n## Requirements\nPro required.\n\n## Limitations\nGuest excluded.')
         snapshot=_recovery_snapshot(session)
@@ -92,9 +92,9 @@ class ReasoningTests(unittest.TestCase):
 
     def test_recovery_omits_old_excerpts_before_cutting_saved_progress(self):
         from copy import deepcopy
-        from seekra.models import DeepSeekModel
-        from seekra.provider_context import _recovery_snapshot, prepare_model_context
-        from seekra.research import update_research
+        from seekra.providers.deepseek import DeepSeekModel
+        from seekra.search.recovery import _recovery_snapshot, prepare_model_context
+        from seekra.search.research import update_research
         from test_documents import add_page, complete_tool
         from test_research import deliver
         session=Session();page=add_page(session,'# Guide\nPro required.\n\n'+'Background. '*1600);deliver(session)
@@ -124,8 +124,8 @@ class ReasoningTests(unittest.TestCase):
         self.assertLessEqual(info['request_characters'],budget)
 
     def test_failed_progress_save_remains_visible_after_business_rebuild(self):
-        from seekra.models import DeepSeekModel
-        from seekra.provider_context import _recovery_snapshot, prepare_model_context
+        from seekra.providers.deepseek import DeepSeekModel
+        from seekra.search.recovery import _recovery_snapshot, prepare_model_context
         from test_documents import add_page, complete_tool
         session=Session();add_page(session,'# Guide\nText.')
         error={'operation':'update_research','status':'failed','error_code':'invalid_arguments',
@@ -140,9 +140,9 @@ class ReasoningTests(unittest.TestCase):
         self.assertIsNone(session.last_run.get('research'))
 
     def test_rebuild_preserves_latest_tool_body_tail_in_actual_request(self):
-        from seekra.models import DeepSeekModel
-        from seekra.provider_context import _recovery_snapshot, prepare_model_context
-        from seekra.delivery import remember_delivery
+        from seekra.providers.deepseek import DeepSeekModel
+        from seekra.search.recovery import _recovery_snapshot, prepare_model_context
+        from seekra.search.documents.delivery import remember_delivery
         from test_documents import add_page, complete_tool
         from test_research import deliver
         session=Session()
@@ -163,8 +163,8 @@ class ReasoningTests(unittest.TestCase):
 
     def test_recovery_latest_batch_reflows_with_true_ranges_and_continuation(self):
         from copy import deepcopy
-        from seekra.models import DeepSeekModel
-        from seekra.provider_context import _recovery_snapshot, prepare_model_context
+        from seekra.providers.deepseek import DeepSeekModel
+        from seekra.search.recovery import _recovery_snapshot, prepare_model_context
         from test_documents import add_page, complete_tool
         session=Session();body='# Guide\n\n## Conditions\n'+'Background. '*490
         page=add_page(session,body)
@@ -329,7 +329,7 @@ class ReasoningTests(unittest.TestCase):
                             for entry in session.model_continuations(previous_messages)))
 
     def test_recovery_accepts_plain_text_from_custom_tools(self):
-        from seekra.provider_context import _recovery_snapshot
+        from seekra.search.recovery import _recovery_snapshot
         from test_documents import begin
         session = Session()
         run_id = begin(session)
@@ -342,9 +342,9 @@ class ReasoningTests(unittest.TestCase):
         self.assertEqual(snapshot['recent_results'][0]['preview'], 'plain custom result')
 
     def test_new_progress_removes_stale_recovery_state_from_actual_input(self):
-        from seekra.models import DeepSeekModel
-        from seekra.provider_context import _recovery_snapshot, prepare_model_context
-        from seekra.research import update_research
+        from seekra.providers.deepseek import DeepSeekModel
+        from seekra.search.recovery import _recovery_snapshot, prepare_model_context
+        from seekra.search.research import update_research
         from test_documents import begin, complete_tool
         session = Session()
         begin(session)
@@ -364,9 +364,9 @@ class ReasoningTests(unittest.TestCase):
 
     def test_recovery_navigation_uses_actual_input_and_keeps_snapshot_immutable(self):
         from copy import deepcopy
-        from seekra.models import DeepSeekModel
-        from seekra.provider_context import _recovery_snapshot, prepare_model_context
-        from seekra.research import update_research
+        from seekra.providers.deepseek import DeepSeekModel
+        from seekra.search.recovery import _recovery_snapshot, prepare_model_context
+        from seekra.search.research import update_research
         from test_documents import add_page, complete_tool
         from test_research import deliver
         session=Session()
@@ -416,10 +416,10 @@ class ReasoningTests(unittest.TestCase):
 
     def test_recovery_actions_remain_available_within_budget(self):
         from copy import deepcopy
-        from seekra.models import DeepSeekModel
-        from seekra.provider_context import _recovery_snapshot, prepare_model_context
-        from seekra.research import update_research
-        from seekra.tools import default_registry
+        from seekra.providers.deepseek import DeepSeekModel
+        from seekra.search.recovery import _recovery_snapshot, prepare_model_context
+        from seekra.search.research import update_research
+        from seekra.search.tools import default_registry
         from test_documents import add_page, complete_tool
         from test_research import deliver
         session=Session()
@@ -446,10 +446,10 @@ class ReasoningTests(unittest.TestCase):
 
     def test_recovery_quote_only_input_is_counted_as_source_excerpt_not_full_page(self):
         from copy import deepcopy
-        from seekra.models import DeepSeekModel
-        from seekra.provider_context import _recovery_snapshot, prepare_model_context
-        from seekra.research import update_research
-        from seekra.delivery import remember_delivery
+        from seekra.providers.deepseek import DeepSeekModel
+        from seekra.search.recovery import _recovery_snapshot, prepare_model_context
+        from seekra.search.research import update_research
+        from seekra.search.documents.delivery import remember_delivery
         from test_documents import add_page, complete_tool
         from test_research import deliver
         session=Session()

@@ -9,10 +9,10 @@ from pathlib import Path
 
 import httpx
 
-from seekra.runtime import CancellationToken, RunCancelled
-from seekra.retrieval import TavilyTransport
-from seekra.agent import run_agent
-from seekra.session import Session
+from seekra.harness.runtime import CancellationToken, RunCancelled
+from seekra.search.retrieval import TavilyTransport
+from seekra.search.agent import run_agent
+from seekra.search.state import SearchSession as Session
 from test_agent import call, reply
 
 

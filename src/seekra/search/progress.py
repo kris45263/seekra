@@ -2,7 +2,7 @@
 from copy import deepcopy
 import json
 
-from .documents import canonical
+from seekra.search.documents.store import canonical
 
 MAX_STATE_CHARS = 8000
 

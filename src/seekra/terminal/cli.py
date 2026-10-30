@@ -10,13 +10,14 @@ import sys
 from dotenv import dotenv_values
 import httpx
 
-from .agent import run_agent, execution_error_message
-from .session import Session
-from .display import AgentDisplay, display_text, session_transcript
-from .input import ReplInput
-from .deepseek import StreamProtocolError
-from .runtime import ContentOutputError
-from .retrieval import TavilyTransport
+from seekra.harness.loop import execution_error_message
+from seekra.search.agent import run_agent
+from seekra.search.state import SearchSession
+from seekra.terminal.display import AgentDisplay, display_text, session_transcript
+from seekra.terminal.input import ReplInput
+from seekra.providers.sse import StreamProtocolError
+from seekra.harness.runtime import ContentOutputError
+from seekra.search.retrieval import TavilyTransport
 
 
 REPL_HELP = """/help  查看帮助
@@ -50,7 +51,7 @@ def read_config(path: Path, *, provider='deepseek') -> dict[str, str]:
 
 
 def run_question(question: str, *, client: httpx.Client, config: dict,
-                 session: Session, verbose: bool, structured_think: bool = False,
+                 session: SearchSession, verbose: bool, structured_think: bool = False,
                  resume: bool = False, max_context_chars: int = 120000, cancel=None) -> int:
     """执行一个问题并报告错误；失败时由调用者决定退出还是继续输入。"""
     if resume and (session.last_run is None or session.last_run['status'] == 'completed'):
@@ -68,8 +69,8 @@ def run_question(question: str, *, client: httpx.Client, config: dict,
         view.event(name, **details)
     try:
         if config.get('MODEL_PROVIDER') == 'chatgpt':
-            from .chatgpt import run_chatgpt
-            from .chatgpt_auth import ChatGPTAuth
+            from seekra.search.agent import run_chatgpt
+            from seekra.providers.chatgpt_auth import ChatGPTAuth
             answer = run_chatgpt(question, client=client, session=session,
                 tavily_api_key=config['TAVILY_API_KEY'], auth=ChatGPTAuth(profile=config.get('CHATGPT_PROFILE', 'default')),
                 on_content=view.content, on_event=event, resume=resume,
@@ -179,7 +180,7 @@ def main() -> int:
     if args.chatgpt_login:
         if args.question or args.repl or args.session or args.resume is not None or args.continue_session or args.sessions:
             parser.error('--chatgpt-login 请单独使用，不与研究或会话操作混用')
-        from .chatgpt_auth import ChatGPTAuth
+        from seekra.providers.chatgpt_auth import ChatGPTAuth
         try:
             auth = ChatGPTAuth(profile=args.chatgpt_profile)
             print('Continue with ChatGPT：将打开浏览器，请确认 Seekra 的套餐使用权限。', file=sys.stderr)
@@ -209,7 +210,7 @@ def main() -> int:
 
     listed_session_ids = []
     def list_sessions():
-        rows=[row for row in Session.list_saved(args.session_dir) if row['question'] or row['status'] in {'corrupt','unsupported'}]
+        rows=[row for row in SearchSession.list_saved(args.session_dir) if row['question'] or row['status'] in {'corrupt','unsupported'}]
         listed_session_ids[:] = [row['id'] for row in rows]
         if not rows:
             print('还没有聊过的对话。',file=sys.stderr)
@@ -229,10 +230,10 @@ def main() -> int:
             raise ValueError('没有找到这段对话，请用 /sessions 查看现有记录')
         if len(matches)>1:
             raise ValueError('编号前缀对应多段对话，请多输入几位或使用列表序号')
-        return Session.load(matches[0])
+        return SearchSession.load(matches[0])
 
     def recent_session_id():
-        for row in Session.list_saved(args.session_dir):
+        for row in SearchSession.list_saved(args.session_dir):
             if row['question'] and row['status'] != 'corrupt':
                 return row['id']
         return None
@@ -243,7 +244,7 @@ def main() -> int:
     try:
         config = read_config(args.env_file, provider=args.provider) if args.provider == 'chatgpt' else read_config(args.env_file)
         if args.provider == 'chatgpt':
-            from .chatgpt_auth import ChatGPTAuth
+            from seekra.providers.chatgpt_auth import ChatGPTAuth
             auth = ChatGPTAuth(profile=args.chatgpt_profile)
             saved = auth.read()
             if not saved.get('access_token'):
@@ -256,7 +257,7 @@ def main() -> int:
     try:
         identifier = (args.resume or recent_session_id()) if args.resume is not None else (args.session or args.continue_session)
         session = open_session(identifier) if identifier else (
-            Session() if args.no_session else Session.create(args.session_dir))
+            SearchSession() if args.no_session else SearchSession.create(args.session_dir))
     except (OSError,ValueError,RuntimeError) as exc:
         print(f'会话打开失败：{exc}',file=sys.stderr)
         return 1
@@ -298,7 +299,7 @@ def main() -> int:
                 return None
             if command == "/new":
                 try:
-                    session = Session() if args.no_session else Session.create(args.session_dir)
+                    session = SearchSession() if args.no_session else SearchSession.create(args.session_dir)
                     show_session('新对话准备好了。')
                 except OSError as exc:
                     print(f'创建会话失败：{type(exc).__name__}',file=sys.stderr)
@@ -343,7 +344,7 @@ def main() -> int:
             if command.startswith("/") and command != '/continue':
                 print("Seekra 不认识这个命令。输入 /help 看看可用命令。", file=sys.stderr)
                 return None
-            # run_question 报告失败后返回；Session 保留此前成功历史，继续等待输入。
+            # run_question 报告失败后返回；SearchSession 保留此前成功历史，继续等待输入。
             if command != '/continue' and session.last_run and session.last_run['status'] != 'completed':
                 print('开始新问题后，/continue 将不再接续之前未完成的回答。', file=sys.stderr)
             status = run_question(None if command == '/continue' else question, client=client, config=config, session=session,

@@ -167,4 +167,4 @@ Seekra 不设固定模型决策次数上限。停止取决于模型回答、取�
 步骤 1–6 的接口和保存机制已有实现与验证。步骤 7 的语义一致性仍不稳定，不能把前六步正常执行当作整份答案合格。
 
 
-源码入口：[工具参数](../src/seekra/research.py)、[状态校验与局部更新](../src/seekra/progress.py)、[正文索引](../src/seekra/documents.py)、[会话重建](../src/seekra/session.py)。
+源码入口：[工具参数](../src/seekra/search/research.py)、[状态校验与局部更新](../src/seekra/search/progress.py)、[正文索引](../src/seekra/search/documents/store.py)、[会话重建](../src/seekra/search/state.py)。

@@ -11,8 +11,8 @@ from unittest.mock import patch
 
 import httpx
 
-from seekra.runtime import CancellationToken
-from seekra.deepseek import StreamProtocolError
+from seekra.harness.runtime import CancellationToken
+from seekra.providers.deepseek_stream import StreamProtocolError
 from test_deepseek_stream import ByteStream
 
 
@@ -22,8 +22,8 @@ def event(kind, **data):
 
 class ChatGPTTests(unittest.TestCase):
     def setUp(self):
-        self.assertIsNotNone(importlib.util.find_spec('seekra.chatgpt'), '需要 ChatGPT 订阅协议适配器')
-        self.module = importlib.import_module('seekra.chatgpt')
+        self.assertIsNotNone(importlib.util.find_spec('seekra.providers.chatgpt'), '需要 ChatGPT 订阅协议适配器')
+        self.module = importlib.import_module('seekra.providers.chatgpt')
 
     def test_stream_and_tools_use_subscription_contract(self):
         captured = []
@@ -126,7 +126,7 @@ class ChatGPTTests(unittest.TestCase):
         self.assertEqual(usage[0]['cache_read_tokens'],3)
 
     def test_cli_uses_own_search_loop_without_deepseek_key(self):
-        from seekra.cli import main
+        from seekra.terminal.cli import main
         requests=[]
         payloads=[]
         def respond(request):
@@ -148,9 +148,9 @@ class ChatGPTTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             config=Path(directory)/'.env';config.write_text('TAVILY_API_KEY=fake-tavily',encoding='utf-8')
             client=httpx.Client(transport=httpx.MockTransport(respond))
-            with patch('seekra.cli.httpx.Client',return_value=client), \
-                 patch('seekra.chatgpt_auth.ChatGPTAuth.read',return_value={'access_token':'fake-access'}), \
-                 patch('seekra.chatgpt_auth.ChatGPTAuth.access_token',return_value='fake-access'), \
+            with patch('seekra.terminal.cli.httpx.Client',return_value=client), \
+                 patch('seekra.providers.chatgpt_auth.ChatGPTAuth.read',return_value={'access_token':'fake-access'}), \
+                 patch('seekra.providers.chatgpt_auth.ChatGPTAuth.access_token',return_value='fake-access'), \
                  patch('sys.argv',['seekra','--provider','chatgpt','--env-file',str(config),'--no-session','question']), \
                  redirect_stdout(io.StringIO()) as out,redirect_stderr(io.StringIO()) as err:
                 self.assertEqual(main(),0)
@@ -162,9 +162,9 @@ class ChatGPTTests(unittest.TestCase):
         self.assertEqual(payloads[0]['input'],payloads[1]['input'][:len(payloads[0]['input'])])
 
     def test_reload_rebuilds_without_persisting_encrypted_reasoning_or_repeating_tool(self):
-        from seekra.session import Session
-        from seekra.chatgpt import run_chatgpt
-        from seekra.chatgpt_auth import ChatGPTAuth
+        from seekra.search.state import SearchSession as Session
+        from seekra.search.agent import run_chatgpt
+        from seekra.providers.chatgpt_auth import ChatGPTAuth
         calls=[]; token=CancellationToken()
         def respond(request):
             calls.append(request.url.host)

@@ -15,7 +15,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.widgets import Frame, TextArea
 from prompt_toolkit.utils import get_cwidth
 
-from .runtime import CancellationToken
+from seekra.harness.runtime import CancellationToken
 
 INPUT_HELP = 'Enter 发送 · Shift+Enter 换行 · 滚轮翻看 · /help 帮助'
 MODIFIED_ENTER = {'\x1b[27;2;13~', '\x1b[27;5;13~'}
@@ -184,7 +184,7 @@ class ReplInput:
         output = self._output if self._output is not None else create_output(stdout=sys.stderr)
         owned_input = None
         if self._input is None and os.name == 'nt':
-            from .windows_input import WindowsReplInput
+            from seekra.terminal.windows_input import WindowsReplInput
             owned_input = WindowsReplInput(self._stdin, output=output)
         self._log = _text_area(text=self._initial_transcript, read_only=True, scrollbar=True,
                              height=Dimension(min=3, preferred=12), focusable=False)

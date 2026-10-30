@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 
 import httpx
-from seekra.cli import main
+from seekra.terminal.cli import main
 from test_agent import reply
 
 
@@ -16,9 +16,9 @@ class ReplTests(unittest.TestCase):
 
     def test_cli_has_no_decision_limit_parameter(self):
         with patch('sys.argv', ['seekra', '问题', '--no-session']), \
-             patch('seekra.cli.read_config', return_value={'DEEPSEEK_API_KEY': 'fake',
+             patch('seekra.terminal.cli.read_config', return_value={'DEEPSEEK_API_KEY': 'fake',
                    'DEEPSEEK_MODEL': 'm', 'TAVILY_API_KEY': 'fake'}), \
-             patch('seekra.cli.run_agent', return_value='答案') as run, \
+             patch('seekra.terminal.cli.run_agent', return_value='答案') as run, \
              redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
             self.assertEqual(main(), 0)
             self.assertNotIn('max_iterations', run.call_args.kwargs)
@@ -39,9 +39,9 @@ class ReplTests(unittest.TestCase):
         client = httpx.Client(transport=httpx.MockTransport(handler))
         out, err = io.StringIO(), io.StringIO()
         with patch("sys.argv", ["seekra", "--repl", "--no-session"]), \
-             patch("seekra.cli.ReplInput.read", side_effect=["", "第一问", "失败", "坏响应", "中断", "第二问", "/bad", "/new", "新问题", "/exit"]), \
-             patch("seekra.cli.read_config", return_value={"DEEPSEEK_API_KEY": "fake", "DEEPSEEK_MODEL": "m", "TAVILY_API_KEY": "fake"}), \
-             patch("seekra.cli.httpx.Client", return_value=client), redirect_stdout(out), redirect_stderr(err):
+             patch("seekra.terminal.cli.ReplInput.read", side_effect=["", "第一问", "失败", "坏响应", "中断", "第二问", "/bad", "/new", "新问题", "/exit"]), \
+             patch("seekra.terminal.cli.read_config", return_value={"DEEPSEEK_API_KEY": "fake", "DEEPSEEK_MODEL": "m", "TAVILY_API_KEY": "fake"}), \
+             patch("seekra.terminal.cli.httpx.Client", return_value=client), redirect_stdout(out), redirect_stderr(err):
             self.assertEqual(main(), 0)
         self.assertEqual(len(histories), 6)
         self.assertEqual([len(m) for m in histories], [2, 4, 4, 4, 4, 2])
@@ -54,8 +54,8 @@ class ReplTests(unittest.TestCase):
         """等待输入时的 EOF 和 Ctrl+C 正常结束循环。"""
         for signal in (EOFError, KeyboardInterrupt):
             with self.subTest(signal=signal), patch("sys.argv", ["seekra", "--repl", "--no-session"]), \
-                 patch("seekra.cli.ReplInput.read", side_effect=signal), \
-                 patch("seekra.cli.read_config", return_value={}), \
+                 patch("seekra.terminal.cli.ReplInput.read", side_effect=signal), \
+                 patch("seekra.terminal.cli.read_config", return_value={}), \
                  redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 self.assertEqual(main(), 0)
 
@@ -63,7 +63,7 @@ class ReplTests(unittest.TestCase):
         """非法组合和非法上限在读取配置前拒绝。"""
         for args in ([], ["--repl", "问题"], ["--repl", "--max-iterations", "3"]):
             with self.subTest(args=args), patch("sys.argv", ["seekra", *args]), \
-                 patch("seekra.cli.read_config") as config, redirect_stderr(io.StringIO()):
+                 patch("seekra.terminal.cli.read_config") as config, redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as raised:
                     main()
                 self.assertEqual(raised.exception.code, 2)

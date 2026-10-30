@@ -6,7 +6,7 @@ import unittest
 @unittest.skipUnless(sys.platform == 'win32', 'Windows console input')
 class WindowsInputTests(unittest.TestCase):
     def test_encoded_events_across_chunks_keep_paste_unicode_and_navigation(self):
-        from seekra.windows_input import Win32KeyParser
+        from seekra.terminal.windows_input import Win32KeyParser
         from prompt_toolkit.keys import Keys
         keys = []
         parser = Win32KeyParser(keys.append)
@@ -27,7 +27,7 @@ class WindowsInputTests(unittest.TestCase):
         from ctypes.wintypes import DWORD, HANDLE
         from prompt_toolkit.input.win32 import INPUT_RECORD
         from prompt_toolkit.keys import Keys
-        from seekra.windows_input import WindowsReplInput
+        from seekra.terminal.windows_input import WindowsReplInput
         handle = HANDLE(ctypes.windll.kernel32.GetStdHandle(-10))
         original = DWORD()
         if not ctypes.windll.kernel32.GetConsoleMode(handle, ctypes.byref(original)):
@@ -74,7 +74,7 @@ class WindowsInputTests(unittest.TestCase):
     def test_modified_return_preserves_newline(self):
         from prompt_toolkit.input.win32 import KEY_EVENT_RECORD
         from prompt_toolkit.keys import Keys
-        from seekra.windows_input import ReplConsoleReader
+        from seekra.terminal.windows_input import ReplConsoleReader
         for modifier in (0x10, 0x08, 0x04):
             event = KEY_EVENT_RECORD()
             event.KeyDown = True

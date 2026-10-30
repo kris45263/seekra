@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 from dotenv import dotenv_values
 import httpx
 
-from seekra.deepseek import StreamProtocolError, stream_chat_text
-from seekra.display import TextStreamWriter
+from seekra.providers.deepseek_stream import StreamProtocolError, stream_chat_text
+from seekra.terminal.display import TextStreamWriter
 
 
 def read_config(path: Path) -> dict[str, str]:
