@@ -1,60 +1,81 @@
-# 评估案例与精选证据
+# 搜索评估
 
-这里分别维护可重复检查的能力、运行所需固定资料，以及需要复查具体现场的少量证据。当前实现见 [架构](../docs/architecture.md)，判断方法见 [验证指南](../docs/validation.md)，问题结论见 [研究发现](../docs/research-findings.md)。
+[cases.json](cases.json) 保存可复用任务和人工判据，[fixtures/](fixtures/) 保存固定资料。评估通过产品的 `Seekra.run` 执行，不自动评分。案例名称表示检查目标，选题以当前问题为准，不需要每次运行整套。
 
-## 选择运行入口
-
-|入口|用途|输出的解释范围|
-|---|---|---|
-|[cases.json](cases.json) 与 [run_live_case.py](../scripts/run_live_case.py)|直接回答、指定页阅读、失败反馈、版本与证据边界四项基础检查|答案和操作摘要；不能重建全部实际请求|
-|[check_documents.py](../scripts/check_documents.py)|正文定位、条件保留、版本比较、引用纠正十项能力检查|实际公开请求、执行记录、取得与交付范围；固定资料与真实检索分别标记|
-|[claim-boundaries.json](claim-boundaries.json)|20 个固定语义正反例，供人工核对或校准评估者|单项判断能力；不能替代完整回答核对或自主研究|
+## 运行
 
 ```powershell
 uv run python -X utf8 scripts/run_live_case.py --list
-uv run python -X utf8 scripts/check_documents.py --list
-uv run python -X utf8 scripts/run_live_case.py --case page --output evals/runs/page.json
-uv run python -X utf8 scripts/check_documents.py --case long-section --output evals/runs/long-section.json
+uv run python -X utf8 scripts/run_live_case.py --case no-search
+uv run python -X utf8 scripts/run_live_case.py --case offline-requirements
+uv run python -X utf8 scripts/run_live_case.py --case wal-readonly
 ```
 
-`--list` 不调用服务。其他运行读取项目 `.env`，调用已配置的 DeepSeek；真实检索案例还调用 Tavily，会产生费用。运行器使用当前代码和默认参数，不声称复现某个历史模型的完整行为。输出文件必须不存在。
+运行必须显式指定 `--case`；`--list` 不读取密钥、不调用服务。模型和配置与产品一致，支持 `--config`、`--env-file`。
 
-`runs/` 是忽略跟踪的过程产物目录。每次运行结束并完成判断后，删除没有后续用途的产物；仅需要复查具体现场时才精选保留。输出未评分，`completed` 只表示执行结束。
+- `live` 使用真实模型与产品检索服务；`no-search` 仍需加载产品要求的密钥，但预期不发出检索请求。
+- `fixed` 使用真实模型，检索由运行器提供固定正文或明确错误，不访问 Tavily。它不检验搜索服务或真实网页提取能力。
 
-## 能力与判据
+## 案例与输入条件
 
-|案例|需要检查的能力|重要判据|
+|案例|输入条件|检查目标|
 |---|---|---|
-|`simple`|无需研究时直接回答|不强制调用搜索或阅读工具|
-|`page`、`live-page`|给定 URL 后定位指定内容|依据实际版本与小节，区分未读、未记载与不存在|
-|`failure-retest`|获取失败后的反馈|报告实际失败，不编造正文或擅自换来源；站点返回回退页面时单独判断目标匹配|
-|`boundary`、`migration`|自主发现并组合版本化来源|分别核对捆绑、默认、必需，或启动方式、可变全局量和常量；来源支持对应版本|
-|`long-section`|跨窗口阅读并保留末尾条件|固定虚构资料中的系统、许可、准备、期限和账户限制均应得到处理|
-|`no-headings`|无可靠目录时使用字面查找|审批主体、个人信息移除、链接期限准确；本题明确要求查找，不检验自主选择工具|
-|`simple-default`|取得充分依据后停止|回答版本与平台条件，不因仍有来源可读而无增益扩展|
-|`wal-readonly`|多来源条件组合|目录权限与 WAL 条件分开；另一个进程可修改时，不把 immutable 当作无条件解决方案|
-|`robots-status`|区分规范中的错误类别|404 与 503 的规定不同；结合本题无缓存前提|
-|`version-comparison`、`version-source-comparison`|同一主题跨版本核对|每项结论绑定对应来源；后者明确给了文档源码回退入口，不与前者当作相同发现难度|
-|`reference-review`|核对引用自身，再展开上下文纠错|初始范围不含完整的 24 小时条款；扩展后引用须包含条件及例外|
+|`no-search`|无资料任务|无需检索时直接完成|
+|`retrieval-failure`|固定工具错误|失败后如实说明、不编造正文|
+|`offline-requirements`|给定长篇虚构资料|分散条件、账户范围与期限|
+|`unstructured-policy`|给定无标题虚构资料|自行定位审批、匿名化与有效期|
+|`citation-support`|给定 RFC 快照及待核对断言|原引用是否支持结论、相关条款与例外|
+|`page-evidence-scope`|给定网页与小节|结论是否超出指定来源|
+|`mimalloc-build-conditions`|自主发现官方来源|CPython 3.13.0 构建支持与默认行为|
+|`multiprocessing-default`|自主发现官方来源|简单事实检索和停止|
+|`multiprocessing-upgrade`|自主发现两个版本来源|配置变化、全局状态与实际建议|
+|`wal-readonly`|给定两个官方页面|组合条件与 immutable 前提|
+|`robots-http-status`|给定规范 URL|状态类别与 MAY/MUST 区别|
+|`free-threading-versions`|给定两个版本页面|对象范围和触发描述的版本绑定|
 
-正文案例的 `expected` 是人工检查点，不发送给模型。外部网页与服务会变化；运行时对照实际版本的原文，不把历史检查表当作永远正确的网页快照。
+固定长资料使用重复背景段落构造定位负担，不代表自然网页分布。给定来源题与自主搜索题分别判断；不要合并成一个“搜索准确率”。
 
-语义正反例包含完整规则、有限阅读和历史执行三个资料范围，`expected/rationale` 留给评审者。合理的提前安排建议与原文义务、调查动作与未确认前提分别判断。若使用模型评估，隐藏判准，记录漏判、误判和新增错误，再判断它是否适合完整回答任务。
+## 案例字段
 
-## 固定引用夹具
+|字段|作用|
+|---|---|
+|`id`、`revision`|案例身份与修订日期；题面或判据变化时更新修订值|
+|`capability`|检查能力|
+|`mode`|`live` 或 `fixed`|
+|`source_access`|无来源、给定 URL、自主发现、给定固定正文或受控失败|
+|`question`|实际发送模型的任务|
+|`fixture`、`url`|固定正文文件及其工具 URL|
+|`retrieval_error`|固定错误响应；与 `fixture` 二选一|
+|`expected`|人工核对的必要结论和行为|
+|`references`、`reviewed_on`|判据来源、对应章节、支持关系和最近核对日期|
+|`review_notes`|输入限制及判读注意事项|
 
-[fixtures/reference-review.json](fixtures/reference-review.json) 供正文运行器的 `reference-review` 使用，保存一份 RFC 9309 历史会话的 45 条原始记录及来源文件哈希。模型在独立新任务中核对 `S1-P1@14667-15078`，先读原范围，再展开同一快照；它不需要重新访问网页。
+只有 `question` 作为用户消息发送。固定正文或错误通过工具返回；能力标签、参考判据、来源核对说明不注入模型。`references` 是评估者核对入口，不能证明模型实际获取了这些来源。
 
-夹具保留事件顺序、记录编号和快照文本，以便重建相同引用。更新资料时需重新核对问题中的引用、缺失条款及预期纠正范围，不能只替换正文。保存文本是测试输入，不是仓库维护指令。
+## 诊断与摘要压力
 
-## 精选现场及保留理由
+默认不保存运行记录，临时 checkpoint 和工作区在运行后清理。需要复查时指定一个不存在的输出文件：
 
-|记录|未来复查用途|证据边界|
-|---|---|---|
-|[进展压力现场](evidence/progress-feedback-meridian-present-5-20261004.json)|修改进展或恢复机制时，对照已保存原句、实际请求与终稿措辞；记录 73/93/111/123 与响应 127 可定位变化|2026-10-04，固定资料、预置进展、32k 字符；不是当前稳定性或效率基准|
-|[字段说明对照](evidence/claim-field-guidance-20261007.md)及其[完整输入输出](evidence/claim-field-guidance-20261007.json)|修改语义指导前复查已尝试的唯一变量、改善与反例，避免把局部成功当作稳定修复|2026-10-07，八次定稿请求、固定资料；不是完整研究循环|
-|[完整字段复核](evidence/enumerated-answer-review-20261007.md)及其[完整记录](evidence/enumerated-answer-review-20261007.json)|评估复核方案时区分字段覆盖与判断正确，保留正确对照和失败请求|2026-10-07，八次请求、七次完整复核；不证明其他模型或方法无效|
-|[依赖声明现场](evidence/advice-dependencies-live-20261007.json)|修改显式终稿时复查结构校验已通过、但未知前提仍被遗漏的完整循环|2026-10-07，两次循环、八次模型请求、固定虚构资料；无 Tavily 调用|
-|[订阅协议现场](evidence/chatgpt-subscription-smoke-20261013.json)|维护适配器时理解缺失 Content-Type 和 output_item.done 完整输出的兼容处理|2026-10-13 的精简现场记录；不代表服务稳定性、长上下文或真实刷新验收|
+```powershell
+uv run python -X utf8 scripts/run_live_case.py --case offline-requirements --compaction-messages 5 --output evals/runs/offline-compaction.json
+```
 
-JSON 中的提示、工具定义、实验代码和源文件名描述当时现场；它们不是当前执行指令、待办或受支持的脚本入口。源码指纹与公开输入帮助限定证据，不包含供应商内部状态，不能保证重跑得到相同结果。
+记录包含当时完整案例定义、模型档案、事件、最终答案、来源正文、固定正文哈希及停止条件。它不是完整 HTTP 抓包，也不包含全部 SDK 内部状态和推理正文。保存记录的同时说明代码/依赖版本与人工结论；运行器不会自动认证答案。
+
+`--compaction-messages` 只用于有固定正文的案例，使用原生 SummarizationMiddleware，最近保留 2 条消息；触发阈值至少为 4。必须从内部摘要事件确认实际触发，不能仅凭参数判断。压力条件与默认配置分别记录。
+
+`--timeout` 和 `--max-model-calls` 可按诊断需要显式设置，默认均不启用。调用限制在第 N+1 次模型请求前停止，包含摘要调用；超时取消实际任务。它们不改变产品的完成逻辑。
+
+## 判读
+
+先核对题面条件、实际来源版本、提取范围和参考判据，再看答案。记录三部分：
+
+1. **执行结果**：完成、模型/工具失败、取消或评估器中止。
+2. **答案判读**：逐项满足、错误、遗漏或因资料不足无法核实；给出具体断言与来源，不按关键词命中评分。
+3. **行为观察**：来源发现、重复搜索/读取、是否取得必要内容、停止情况；不以调用次数单独判断好坏。
+
+资料取得不足时，如实承认未知可以在诚实性方面合格，但不等于事实任务已完成。资料版本不符或参考页面已变化时先修正条件，不强行算作模型正确/错误。执行中止的任务没有完整答案分数；评估器自身问题另列。
+
+引用必须支持相应断言。必要条件不能擅自变成充分条件，建议不能冒充来源义务，部分未见不能扩大为不存在。回答正确但没有完成要求的来源核验，也不能认定该项能力通过。
+
+当前题集没有经过难度校准，不发布合并总分。案例重写后的结果与历史题目分别记录；真实运行结论维护在本地验证记录中。

@@ -1,18 +1,331 @@
 [
   {
-    "id": "simple",
-    "question": "只回复“你好”，不需要搜索。"
+    "id": "no-search",
+    "mode": "live",
+    "source_access": "none",
+    "capability": "无需检索时直接完成",
+    "question": "只回复“你好”，不需要搜索。",
+    "expected": [
+      "最终回答去掉首尾空白后为“你好”。",
+      "没有搜索、页面提取或文件工具调用。"
+    ],
+    "review_notes": [
+      "这是执行与指令遵循检查，不测事实研究质量。产品仍加载模型和 Tavily 配置，但不应发出检索请求。"
+    ],
+    "references": [],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
   },
   {
-    "id": "page",
-    "question": "请读取 https://docs.python.org/3.13/c-api/memory.html ，只依据这一页，说明 The mimalloc allocator 小节明确写了什么；若页面没有说明某种构建必须使用它，请区分未记载和不存在。"
+    "id": "page-evidence-scope",
+    "mode": "live",
+    "source_access": "given_urls",
+    "capability": "限定来源下的证据范围",
+    "question": "请只依据 https://docs.python.org/3.13/c-api/memory.html 的 The mimalloc allocator 小节，说明该小节明确介绍了什么，以及它是否足以判断普通 GIL 构建与 free-threaded 构建都必须使用 mimalloc。给出来源。",
+    "expected": [
+      "说明 Python 3.13 新增支持，且依赖底层平台支持。",
+      "该小节不足以单独判断两个构建的强制使用条件；不能据未写出要求断言现实中没有要求。",
+      "结论限定在指定小节，没有把其他来源知识冒充该小节原文。"
+    ],
+    "review_notes": [
+      "给定 URL 和小节，只测证据范围判断，不测自主发现。",
+      "若提取未包含目标小节，记资料获取受限；凭记忆答对不算来源核验通过。"
+    ],
+    "references": [
+      {
+        "url": "https://docs.python.org/3.13/c-api/memory.html#the-mimalloc-allocator",
+        "section": "The mimalloc allocator",
+        "basis": "小节给出 3.13 新增和平台支持条件，没有给出两个构建的完整强制使用规则。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
   },
   {
-    "id": "failure-retest",
-    "question": "请读取 https://example.com/mini-core-nonexistent-20260908 ，如果无法读取，告诉我发生了什么，不要改查其他页面。"
+    "id": "retrieval-failure",
+    "mode": "fixed",
+    "source_access": "controlled_failure",
+    "capability": "获取失败后如实说明",
+    "url": "https://docs.example.org/unavailable",
+    "retrieval_error": {
+      "error": "retrieval_failed",
+      "message": "测试检索服务未返回可用资料；尚不能判断页面内容。"
+    },
+    "question": "请读取 https://docs.example.org/unavailable ，说明该页面的使用条件。只使用这个页面，不要改查其他来源。",
+    "expected": [
+      "实际尝试获取指定页面，收到失败结果。",
+      "说明未取得资料，无法核实使用条件；不编造正文、引文或 HTTP 状态码。",
+      "没有通过其他来源回答；没有把获取失败等同于页面不存在。"
+    ],
+    "review_notes": [
+      "失败由运行器注入，不依赖一个看似不存在的公网 URL。",
+      "只检查模型处理明确工具失败的行为，不检查 Tavily 实际错误转换或网络取消。"
+    ],
+    "references": [],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
   },
   {
-    "id": "boundary",
-    "question": "根据 Python 3.13 官方文档，mimalloc 在普通 GIL 构建与 free-threaded 构建中的启用条件分别是什么？捆绑、默认使用和必须使用是否相同？请提供官方来源，不要混用其他 Python 版本。"
+    "id": "mimalloc-build-conditions",
+    "mode": "live",
+    "source_access": "discover",
+    "capability": "自主核对构建条件",
+    "question": "请核实 CPython 3.13.0 在 Linux 上构建时，普通 GIL 构建和 free-threaded 构建能否关闭 mimalloc，以及源码包含 mimalloc 是否就代表普通构建默认用它分配 Python 对象。给出适用版本的官方文档或源码依据。",
+    "expected": [
+      "区分捆绑源码、编译支持与默认分配器；捆绑不推出普通构建默认使用。",
+      "普通构建可配置 --without-mimalloc；v3.13.0 configure.ac 中默认编译支持取决于 stdatomic.h。",
+      "--disable-gil 与关闭 mimalloc 不兼容，configure.ac 明确报错。",
+      "普通 release 构建默认分配器表为 pymalloc；回答标明相关配置前提，引用支持各项判断。"
+    ],
+    "review_notes": [
+      "未提供目标 URL，测自主来源发现。要求是 3.13.0；不能拿新版文档的不同表述代替该版本依据。",
+      "没有获得强制条件证据时应记未核实，不能用单页缺项证明没有要求。"
+    ],
+    "references": [
+      {
+        "url": "https://raw.githubusercontent.com/python/cpython/v3.13.0/configure.ac",
+        "section": "with-mimalloc / disable_gil",
+        "basis": "默认编译支持检查 stdatomic.h；普通构建允许关闭；disable-gil 要求 mimalloc。"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/python/cpython/v3.13.0/Doc/c-api/memory.rst",
+        "section": "Default Memory Allocators",
+        "basis": "普通 release 构建表中 PyMem_Malloc 和 PyObject_Malloc 为 pymalloc。"
+      },
+      {
+        "url": "https://docs.python.org/3.13/whatsnew/3.13.html#build-changes",
+        "section": "Build Changes",
+        "basis": "CPython 默认捆绑 mimalloc；这一事实不能单独证明默认使用。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
+  },
+  {
+    "id": "offline-requirements",
+    "mode": "fixed",
+    "source_access": "given_document",
+    "capability": "长资料中的条件完整性",
+    "fixture": "fixtures/long-section.md",
+    "url": "https://docs.example.org/meridian/2.0/offline",
+    "question": "请读取 https://docs.example.org/meridian/2.0/offline ，说明虚构产品 Meridian 2.0 在 Windows 上使用离线模式的条件，并提供来源。",
+    "expected": [
+      "Windows 10 或更新版本。",
+      "需要 Pro 许可证。",
+      "首次离线使用前联网下载资源包。",
+      "连续离线 30 天后需要再次联网验证，不能改写为必须在 30 天前完成。",
+      "共享访客账户不能使用离线模式，不能扩大为禁止所有访客。",
+      "没有凭资料未说明的计时重置机制承诺周期联网方案一定成立。"
+    ],
+    "review_notes": [
+      "固定资料含重复背景段落，检查重要条件分散在长资料中的情况；不是自然网页分布的代表样本。",
+      "不要求机械读完所有行，检查关键条件是否取得并准确使用。"
+    ],
+    "references": [
+      {
+        "fixture": "fixtures/long-section.md",
+        "section": "Supported platforms; Offline requirements 末尾; Limitations",
+        "basis": "五项条件分散在开头、长小节末尾及账户限制小节。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
+  },
+  {
+    "id": "unstructured-policy",
+    "mode": "fixed",
+    "source_access": "given_document",
+    "capability": "无标题资料的定位与提取",
+    "fixture": "fixtures/no-headings.md",
+    "url": "https://docs.example.org/northstar/export-policy",
+    "question": "请读取 https://docs.example.org/northstar/export-policy ，说明虚构组织 Northstar 导出记录前的审批、数据处理要求，以及下载链接的有效期。给出来源。",
+    "expected": [
+      "导出前取得数据所有者书面批准。",
+      "删除导出数据中的姓名和电子邮件地址。",
+      "下载链接从创建时起 48 小时失效，不能换成审批或首次下载后的计时。"
+    ],
+    "review_notes": [
+      "不提示关键词或指定工具；记录模型选择查找还是顺序读取，但不按使用某工具本身评分。"
+    ],
+    "references": [
+      {
+        "fixture": "fixtures/no-headings.md",
+        "section": "Approval; Anonymization; Download link expiry",
+        "basis": "资料末尾三个标签后的规定；全文没有 Markdown 标题结构。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
+  },
+  {
+    "id": "multiprocessing-upgrade",
+    "mode": "live",
+    "source_access": "discover",
+    "capability": "跨版本条件与实际建议",
+    "question": "一个有可写临时目录的 Linux 环境准备从 Python 3.13 升级到 3.14，程序没有显式设置 multiprocessing 启动方式。父进程在启动后修改全局配置，子进程需要读取这些配置；程序也使用模块级常量。请核实升级影响并提出具体调整建议，给出两个版本的官方依据。",
+    "expected": [
+      "题设条件下默认方式从 fork 变为 forkserver；结论限定 Linux 和所查版本。",
+      "spawn/forkserver 子进程读到的全局值不保证等于父进程调用 Process.start 时的值。",
+      "区分模块级常量与运行中改变的全局配置。",
+      "提出显式传参、初始化或进程通信等与问题对应的办法；若建议强制 fork，应说明其多线程风险，不能作为无条件修复。"
+    ],
+    "review_notes": [
+      "已明确有可写临时目录，避免当前 3.14 文档所述回退条件使答案含糊。",
+      "与 multiprocessing-default 检查不同能力，不以两题都答对推导一般迁移能力。"
+    ],
+    "references": [
+      {
+        "url": "https://docs.python.org/3.13/library/multiprocessing.html#contexts-and-start-methods",
+        "section": "Contexts and start methods",
+        "basis": "fork 默认用于 macOS 以外的 POSIX；spawn/forkserver 的全局变量注意事项另见同页相应章节。"
+      },
+      {
+        "url": "https://docs.python.org/3.14/library/multiprocessing.html#contexts-and-start-methods",
+        "section": "Contexts and start methods; The spawn and forkserver start methods",
+        "basis": "Linux 等支持的平台默认 forkserver；当前文档注明无可写临时目录时有 spawn 回退。子进程全局值不保证等于父进程启动时的值，模块级常量单独对待。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
+  },
+  {
+    "id": "multiprocessing-default",
+    "mode": "live",
+    "source_access": "discover",
+    "capability": "简单事实检索与停止",
+    "question": "在有可写临时目录的 Linux 系统上，Python 3.14 未显式设置 multiprocessing 启动方式时默认使用什么？请提供官方依据。",
+    "expected": [
+      "回答 forkserver，并由适用版本的官方资料支持。",
+      "没有把该结论扩大为 Windows、macOS 或无可写临时目录的所有环境。"
+    ],
+    "review_notes": [
+      "资料充分后的重复搜索另记行为观察，不设未经校准的固定调用数合格线。"
+    ],
+    "references": [
+      {
+        "url": "https://docs.python.org/3.14/library/multiprocessing.html#contexts-and-start-methods",
+        "section": "Contexts and start methods; The spawn and forkserver start methods",
+        "basis": "Linux 等支持的平台默认 forkserver；当前文档注明无可写临时目录时有 spawn 回退。子进程全局值不保证等于父进程启动时的值，模块级常量单独对待。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
+  },
+  {
+    "id": "wal-readonly",
+    "mode": "live",
+    "source_access": "given_urls",
+    "capability": "跨来源条件组合",
+    "question": "SQLite 数据库使用 WAL 模式。应用只读，目录不可写，但另一个进程可能继续修改数据库。请依据 https://sqlite.org/wal.html 和 https://sqlite.org/uri.html 判断能否打开、还缺哪些条件，以及能否用 immutable=1 解决目录权限问题。提供条款依据。",
+    "expected": [
+      "核对 SQLite 3.22.0 起的只读 WAL 支持。",
+      "三个可选条件是已有可读的 -wal 和 -shm、目录可写以创建它们，或以 immutable 打开。",
+      "本题目录不可写，需要核实已有文件和版本等条件，不能直接判定一定可用。",
+      "其他进程可能修改与 immutable 的不可变承诺冲突，不应把它当作权限绕过方案；它跳过锁与变化检测，错误声明可能导致错误结果或损坏错误。"
+    ],
+    "review_notes": [
+      "给定两个来源，测条件组合而不是搜索发现；不要把只读连接等同于数据库不会变化。"
+    ],
+    "references": [
+      {
+        "url": "https://sqlite.org/wal.html#read_only_databases",
+        "section": "5. Read-Only Databases",
+        "basis": "3.22.0 起支持只读 WAL，列出三种可选条件。"
+      },
+      {
+        "url": "https://sqlite.org/uri.html#uriimmutable",
+        "section": "immutable=1",
+        "basis": "即便其他高权限进程也不能改动的承诺；跳过锁与变化检测。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
+  },
+  {
+    "id": "robots-http-status",
+    "mode": "live",
+    "source_access": "given_urls",
+    "capability": "规范条件与义务强度",
+    "question": "请依据 https://www.rfc-editor.org/rfc/rfc9309.txt 核实：爬虫首次访问站点，没有缓存过 robots.txt，获取 robots.txt 时分别返回 HTTP 404 和 HTTP 503。当次应如何处理该站点资源访问？给出规范依据。",
+    "expected": [
+      "404 属于 unavailable 的 400–499 范围，规范允许 MAY 访问，不是必须访问。",
+      "503 属于 unreachable 的 500–599 范围，必须假定 complete disallow。",
+      "不把长期不可达的可选处理或不存在的缓存应用到首次当次请求。"
+    ],
+    "review_notes": [
+      "只判断 robots 协议访问规则，不扩展为站点授权或法律结论。"
+    ],
+    "references": [
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc9309.html#section-2.3.1.3",
+        "section": "2.3.1.3; 2.3.1.4",
+        "basis": "unavailable 可访问；unreachable 必须假定完全禁止，长期状态另有条件。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
+  },
+  {
+    "id": "free-threading-versions",
+    "mode": "live",
+    "source_access": "given_urls",
+    "capability": "相近版本的来源绑定",
+    "question": "请对比 https://docs.python.org/3.13/howto/free-threading-python.html 和 https://docs.python.org/3.14/howto/free-threading-python.html 的 Immortalization 说明。两个版本的对象范围和触发描述有什么差异？请分别提供依据。",
+    "expected": [
+      "3.13 明确首次启动主线程以外线程的触发，并列出模块级函数、方法描述符、代码、模块及其字典、类。",
+      "3.13 另说明数值/字符串字面量和 sys.intern 字符串，不把额外说明擅自等同于前述触发范围。",
+      "3.14 列出的范围为代码常量（数值、字符串、由常量组成的元组）与 sys.intern 字符串。",
+      "不把 3.13 的广泛对象列表或触发直接套入 3.14；3.14 小节未给同样触发，不足以推断实际实现一定在另一时刻发生。",
+      "每个版本的断言分别由其资料支持。"
+    ],
+    "review_notes": [
+      "给定两个 URL，没有预给备用源码路径。获取失败和版本错配分别记录。",
+      "文档会更新；本次官方网页核对日期见 reviewed_on，评分前核对实际提取版本与内容。"
+    ],
+    "references": [
+      {
+        "url": "https://docs.python.org/3.13/howto/free-threading-python.html#immortalization",
+        "section": "Immortalization",
+        "basis": "首次启动主线程以外线程时使指定对象不朽化；另列数值/字符串字面量和 sys.intern 字符串。"
+      },
+      {
+        "url": "https://docs.python.org/3.14/howto/free-threading-python.html#immortalization",
+        "section": "Immortalization",
+        "basis": "3.14 列出的范围限于代码常量和 sys.intern 字符串；未沿用 3.13 的广泛对象列表与线程触发描述。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
+  },
+  {
+    "id": "citation-support",
+    "mode": "fixed",
+    "source_access": "given_document",
+    "capability": "原引用支持关系与重新定位",
+    "fixture": "fixtures/robots-exclusion.md",
+    "url": "https://www.rfc-editor.org/rfc/rfc9309.txt",
+    "question": "请读取测试提供的 RFC 9309 固定快照 https://www.rfc-editor.org/rfc/rfc9309.txt 。有人用 2.3.1.5 关于逐行解析并使用可解析规则的两句，支持“缓存不应使用超过 24 小时，除非 robots.txt 不可达”。请核实这个引用是否恰当，并给出判断依据。",
+    "expected": [
+      "2.3.1.5 谈解析，不支持缓存时长判断。",
+      "定位 2.4 Caching，说明相关规则是 SHOULD NOT 超过 24 小时，保留 unreachable 例外。",
+      "不改写成无例外的强制 24 小时禁令，也不因能找到正确条款就认定原引用恰当。"
+    ],
+    "review_notes": [
+      "是指定断言的引用核验，不是自主识别一篇答案所有错误的能力。"
+    ],
+    "references": [
+      {
+        "fixture": "fixtures/robots-exclusion.md",
+        "section": "2.3.1.5; 2.4",
+        "basis": "解析规则与缓存条款分属不同章节；资料是含版权与出处的 RFC 提取快照。"
+      },
+      {
+        "url": "https://www.rfc-editor.org/rfc/rfc9309.html#section-2.4",
+        "section": "2.4 Caching",
+        "basis": "固定快照相关条款已与官方 RFC 核对。"
+      }
+    ],
+    "revision": "2026-11-02",
+    "reviewed_on": "2026-11-02"
   }
 ]

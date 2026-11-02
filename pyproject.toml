@@ -1,13 +1,17 @@
 [project]
 name = "seekra"
 version = "0.1.0"
-description = "Seekra：使用 DeepSeek 和 Tavily 的终端搜索研究助手"
+description = "Seekra：搜索网页、核对来源并支持会话追问的终端研究助手"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "deepagents==0.7.32",
+    "filelock>=3.32.7",
     "httpx[socks]>=0.28.1",
+    "langchain-litellm==0.11.2",
+    "langchain-tavily==0.2.18",
+    "langgraph-checkpoint-sqlite==3.1.3",
     "prompt-toolkit>=3.0.52,<4",
-    "pyjwt[crypto]>=2.10,<3",
     "python-dotenv>=1.2.3",
 ]
 

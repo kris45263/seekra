@@ -101,49 +101,39 @@ class InputEditorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unsubmitted_busy_draft_never_becomes_a_persistent_turn(self):
         from seekra.terminal.cli import run_question
-        from seekra.search.state import SearchSession as Session
-        calls = []
-        release = threading.Event()
-        def response(request):
-            calls.append(json.loads(request.content)['messages'][-1]['content'])
+        from test_sdk_integration import ScriptModel, app_at
+        from langchain_core.messages import AIMessage, HumanMessage
+        calls, release = [], threading.Event()
+        def respond(messages):
+            calls.append(messages[-1].content)
             release.wait(3)
-            chunk = {'choices':[{'index':0,'delta':{'role':'assistant','content':'答复'},'finish_reason':'stop'}]}
-            return httpx.Response(200, headers={'content-type':'text/event-stream'},
-                                  content='data: '+json.dumps(chunk)+'\n\ndata: [DONE]\n\n')
-        with tempfile.TemporaryDirectory() as directory, create_pipe_input() as pipe, \
-             httpx.Client(transport=httpx.MockTransport(response)) as client, redirect_stdout(io.StringIO()):
-            session = Session.create(Path(directory))
-            config = {'DEEPSEEK_API_KEY':'fake-ds','DEEPSEEK_MODEL':'test','TAVILY_API_KEY':'fake-tv'}
+            return AIMessage(content='answer')
+        with tempfile.TemporaryDirectory() as directory, create_pipe_input() as pipe, redirect_stdout(io.StringIO()):
+            app = app_at(directory, ScriptModel(replies=[respond], profile={'max_input_tokens':64000}))
+            item = app.new_session()
             def handle(text, cancel):
-                if text == '/exit':
-                    return 0
-                run_question(text,client=client,config=config,session=session,
-                             verbose=False,cancel=cancel)
-            editor = ReplInput(input=pipe,output=DummyOutput())
+                if text == '/exit': return 0
+                run_question(app, item, text, cancel=cancel)
+            editor = ReplInput(input=pipe, output=DummyOutput())
             task = asyncio.create_task(editor.run_async(handle))
             try:
-                pipe.send_text('\x1b[200~第一问\n    多行\n\x1b[201~')
-                await self.wait_until(lambda: editor.draft.endswith('多行\n'))
-                self.assertEqual(calls, [])
-                self.assertEqual(len(session.runs), 0)
-                pipe.send_text('\r')
+                pipe.send_text('first question\r')
                 await self.wait_until(lambda: len(calls) == 1)
-                pipe.send_text('\x1b[200~第二问\n还没发送\n\x1b[201~\r')
-                await self.wait_until(lambda: editor.draft.endswith('还没发送\n'))
-                self.assertEqual(len(session.runs), 1)
+                pipe.send_text('unsent draft\r')
+                await self.wait_until(lambda: editor.draft == 'unsent draft')
                 release.set()
                 await self.wait_until(lambda: not editor.busy)
-                self.assertEqual(len(calls), 1)
-                self.assertEqual(len(Session.load(session.path).runs), 1)
-                pipe.send_text('\x03')  # 清空未发送草稿。
+                history = await app.history(item)
+                self.assertEqual([m.content for m in history if isinstance(m,HumanMessage)], ['first question'])
+                pipe.send_text('\x03')
                 await self.wait_until(lambda: not editor.draft)
                 pipe.send_text('/exit\r')
-                self.assertEqual(await asyncio.wait_for(task, 2), 0)
+                self.assertEqual(await asyncio.wait_for(task,2),0)
             finally:
                 release.set()
                 if not task.done():
                     pipe.send_text('\x03\x03')
-                    await asyncio.wait_for(task, 4)
+                    await asyncio.wait_for(task,4)
 
     async def wait_until(self, predicate):
         for _ in range(100):

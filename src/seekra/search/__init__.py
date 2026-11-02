@@ -1,1 +1,1 @@
-"""搜索研究能力及其运行组装。"""
+"""Search product capability."""

@@ -15,7 +15,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.widgets import Frame, TextArea
 from prompt_toolkit.utils import get_cwidth
 
-from seekra.harness.runtime import CancellationToken
+from seekra.terminal.cancellation import CancellationToken
 
 INPUT_HELP = 'Enter 发送 · Shift+Enter 换行 · 滚轮翻看 · /help 帮助'
 MODIFIED_ENTER = {'\x1b[27;2;13~', '\x1b[27;5;13~'}

@@ -1,67 +1,21 @@
-"""Search Agent 的组装入口；循环由 Harness 提供。"""
-import hashlib
-from seekra.harness.context import AgentDefinition, PreparedRequest
-from seekra.harness.loop import execute_run as execute_harness
-from seekra.harness.runtime import CancellationToken
-from .compaction import prepare_model_turn
-from .prompt import SYSTEM_PROMPT, system_prompt
-from .state import SearchSession
-from .tools import tool_definitions, default_registry
+"""Search composition; execution and context management belong to Deep Agents."""
+from deepagents import create_deep_agent
+from deepagents.profiles import HarnessProfile, GeneralPurposeSubagentProfile, register_harness_profile
+from seekra.sdk.workspace import workspace_backend, search_permissions
+from seekra.search.prompt import SEARCH_PROMPT
+from seekra.search.sources import Sources
+from seekra.search.tools import search_tools
 
 
-def prepare_search_request(messages, definitions, session, max_chars, model, *, cancel):
-    return PreparedRequest(*prepare_model_turn(
-        messages, definitions, session, max_chars, model, cancel=cancel))
-
-
-SEARCH_AGENT = AgentDefinition(hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
-                               system_prompt, prepare_search_request)
-
-
-def execute_run(question, *, model, registry, session, **options):
-    """提供 Search 策略的嵌入入口；普通任务使用 harness.loop.execute_run。"""
-    return execute_harness(question, model=model, registry=registry, session=session,
-                           agent=SEARCH_AGENT, **options)
-
-
-def run_search(question, *, model, client, tavily_api_key, session=None,
-               structured_think=False, cancel=None, **options):
-    """两个模型入口共用的 Search 组装；返回正文，执行失败保留原异常。"""
-    cancel = cancel or CancellationToken()
-    session = session if session is not None else SearchSession()
-    session.secrets = tuple(dict.fromkeys((*session.secrets, tavily_api_key)))
-    registry = default_registry(client, tavily_api_key, session, structured_think,
-                                definitions=tool_definitions(structured_think), cancel=cancel)
-    result = execute_run(question, model=model, registry=registry, session=session,
-                         cancel=cancel, **options)
-    if result.cause is not None:
-        raise result.cause
-    return result.answer
-
-
-def run_agent(question, *, client, model, deepseek_api_key, tavily_api_key,
-              session=None, structured_think=False, on_content=None, on_event=None,
-              resume=False, cancel=None, max_context_chars=120000, thinking=True,
-              reasoning_effort='high', max_output_tokens=8192):
-    """兼容原有 Python 入口；新的嵌入调用可直接使用 execute_run 和 Model 接口。"""
-    from seekra.providers.deepseek import DeepSeekModel
-    session = session if session is not None else SearchSession()
-    session.secrets = tuple(dict.fromkeys((*session.secrets, deepseek_api_key, tavily_api_key)))
-    return run_search(question, model=DeepSeekModel(client, model, deepseek_api_key, thinking=thinking,
-        reasoning_effort=reasoning_effort, max_output_tokens=max_output_tokens),
-        client=client, tavily_api_key=tavily_api_key, structured_think=structured_think,
-        session=session, resume=resume,
-        cancel=cancel, on_content=on_content, on_event=on_event, max_context_chars=max_context_chars)
-
-
-def run_chatgpt(question, *, client, tavily_api_key, auth, session, resume=False,
-                cancel=None, on_content=None, on_event=None, max_context_chars=120000):
-    from seekra.providers.chatgpt import ChatGPTModel
-    def token():
-        value = auth.access_token(client)
-        session.secrets = tuple(dict.fromkeys((*session.secrets, value)))
-        return value
-    return run_search(question, model=ChatGPTModel(client, token),
-        client=client, tavily_api_key=tavily_api_key, session=session,
-        resume=resume, cancel=cancel, on_content=on_content, on_event=on_event,
-        max_context_chars=max_context_chars)
+def create_search_agent(model, retrieval, workspace, checkpointer, *, middleware=()):
+    provider = model._get_ls_params()['ls_provider']
+    identifier = getattr(model, 'model_name', None) or getattr(model, 'model', None)
+    key = f'{provider}:{identifier}' if identifier else provider
+    register_harness_profile(key, HarnessProfile(
+        general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False),
+        excluded_tools=frozenset({'execute', 'task'}),
+    ))
+    return create_deep_agent(model, tools=search_tools(retrieval, Sources(workspace)),
+                             system_prompt=SEARCH_PROMPT, backend=workspace_backend(workspace),
+                             permissions=search_permissions(), checkpointer=checkpointer,
+                             skills=['/skills/'], middleware=middleware, name='seekra-search')

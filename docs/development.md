@@ -1,76 +1,67 @@
 # 开发指南
 
-Seekra 使用 Python 3.13、uv 和同步 Python 模块。安装与用户命令见 [README](../README.md)，模块协作见 [架构](architecture.md)。
+## 环境与入口
 
-## 环境与运行
-
-在仓库根目录执行：
+项目通过 `.python-version` 选择 Python 3.13，使用 uv 管理依赖。运行以下命令准备环境并查看产品命令：
 
 ```powershell
 uv sync --locked
 uv run seekra --help
-uv run seekra --repl
 ```
 
-首次运行按 README 配置 `.env`，不要覆盖已有配置。默认 DeepSeek 入口需要 DeepSeek 与 Tavily 配置；ChatGPT 订阅入口完成单独授权后只需 Tavily 配置。CLI 默认读取启动目录的 `.env`，其他路径通过 `--env-file PATH` 指定。帮助、版本和离线测试无需真实密钥。
+配置和会话操作见[使用说明](usage.md)，执行与状态关系见[系统架构](architecture.md)。
 
-`uv tool install --python 3.13 --editable .` 可安装本地源码命令。移动源码目录后需重新安装；项目虚拟环境可通过 `uv sync --locked` 重新绑定。
+## 目录和文件用途
 
-## 修改入口
+|位置|作用与维护方式|
+|---|---|
+|`src/seekra/`|产品源码；按应用、SDK、搜索、终端职责组织|
+|`tests/`|快速、确定的工程回归；使用假模型和固定检索检查真实 SDK 接入|
+|`evals/`|可复用任务、固定资料和人工判据；运行方式见[评估说明](../evals/README.md)|
+|`scripts/`|开发辅助命令，目前保留统一评估入口 `run_live_case.py`；不参与产品启动|
+|`docs/`|使用说明、系统架构与开发指南|
+|`dist/`|`uv build` 生成的 wheel 和源码分发包；不是源码或运行依赖，用完可删除|
+|`.venv/`|项目 Python 环境，由 `uv sync --locked` 准备；日常保留|
+|`.uv-cache/`|uv 的下载与构建缓存，路径由 `pyproject.toml` 配置；日常保留以避免重复下载|
+|`__pycache__/`|Python 自动生成的字节码缓存，可再生成|
+|`.seekra/`|本地会话、来源和工作文件；可能还包含凭据等历史数据，不能按缓存清理|
+|`.git/`|版本历史与仓库状态，不作为整理对象|
+|`pyproject.toml`、`uv.lock`、`.python-version`|包定义、依赖锁定与解释器选择；保持一致|
+|`.env`、`seekra.toml`|本地凭据与个人配置；示例文件用于说明可配置内容|
+|`AGENTS.md`|本地协作准则|
 
-|修改目标|主要模块|需要关注的行为|
-|---|---|---|
-|通用循环与终止|`harness/loop.py`、`harness/runtime.py`|完整响应、调用配对、取消、失败与完成状态|
-|通用请求/工具接口|`harness/context.py`、`harness/tools.py`|策略身份、实际请求预算、ToolResult 与执行元数据|
-|搜索入口和提示|`search/agent.py`、`search/prompt.py`|模型与工具组装、提示模板身份、旧会话恢复|
-|搜索上下文|`search/context.py`、`search/compaction.py`、`search/recovery.py`|正文交付、摘要提交、供应商续接缺失后的恢复|
-|模型协议与授权|`providers/`|SSE 完整结束、工具组装、连接释放、认证与用量|
-|搜索工具与获取|`search/tools.py`、`search/retrieval.py`|参数校验、失败原因、页面更新先准备后提交|
-|正文与进展|`search/documents/`、`search/research.py`、`search/progress.py`|稳定引用、实际交付范围、进展版本与局部更新|
-|历史与显式终稿|`search/history.py`、`search/answers.py`|当时证据归属、原文校验、排版及恢复交付|
-|终端与命令|`terminal/`|配置、正文输出、运行中草稿和按键协议|
-|会话持久化|`harness/session.py`；搜索投影在 `search/state.py`|提交、重载、未知工具结果、文件锁与 reset 隔离|
+## 按修改选择验证
 
-以上路径相对于 `src/seekra/`。新增工具把依赖绑定在注册函数，处理函数接收完整调用，返回文本或 `ToolResult`；不要把业务缓存参数加回通用循环。新增 Provider 实现 `Model`，有续接状态时实现 `ContextModel`；接入位置是 Search 组装入口。普通任务可直接使用通用循环，无需引用 Search。
-
-正文、进展和历史视图都从已提交事实重建；判断上下文变化时核对实际下一次模型请求。`test_architecture.py` 保护依赖方向、裸 Harness 运行、工具提交以及 Search 投影边界。旧 `seekra.agent` 和 `seekra.session` 仅保留已公开 Search 入口；项目内代码直接导入新实现路径。
-
-## 工程验证
+|改动|重点入口与风险|
+|---|---|
+|配置和模型接入|`config.py`、`sdk/models.py`；档案校验、工具绑定、推理字段往返和序列化|
+|搜索和来源|`search/retrieval.py`、`tools.py`、`sources.py`；失败反馈、并发发布、幂等和损坏检测|
+|会话和恢复|`app.py`、`sdk/sessions.py`；锁、待恢复状态、配置指纹和重启后的消息|
+|流和终端|`sdk/events.py`、`terminal/`；摘要分类、最终输出、多行粘贴、草稿和取消|
+|评估入口|`scripts/run_live_case.py`；输入隔离、诊断记录、外部停止条件|
 
 ```powershell
-uv run python -X utf8 -m unittest discover -s tests -v
+uv run python -X utf8 -m unittest discover -s tests -q
 ```
 
-测试使用假模型、MockTransport、本机测试服务及临时目录，不访问真实模型或搜索服务。安装入口测试会启动子进程。按修改范围选择测试与实测，具体见 [验证方法](validation.md)。
+产品、SDK 集成和 CLI 检查分别集中在 `test_sdk_products.py`、`test_sdk_integration.py`、`test_sdk_cli.py`；输入检查在 `test_input_editor.py` 和 `test_windows_input.py`。Windows 实机按键项需要真实控制台，跳过不能算作实机通过。
 
-Windows 输入适配使用 prompt-toolkit 的内部键盘转换方法。升级依赖时检查该方法是否新增实例初始化状态，并运行 `test_windows_input.py`；剪贴板和物理组合键仍需实际 Windows Terminal 验证。
+升级 SDK 时检查工具 schema、文件权限、摘要、SQLite 恢复和事件分类。v3 事件与 profile API 的变化可能影响接入，依赖锁定不是未来兼容保证。模型协议问题优先检查实际集成的转换与请求。
 
-默认 CLI 保存会话；测试 CLI 时使用临时 `--session-dir` 或 `--no-session`。`Model.generate`、`ToolRegistry` 与 `execute_run` 是嵌入和离线模拟入口。恢复未完成任务的接口与兼容条件见架构说明。
+工程测试检查行为契约；真实模型运行和答案判读使用 evals。根据改动选择验证，不为纯说明调整默认调用付费模型。评估调用上限与超时仅属于运行器。
 
-## 能力检查与诊断
-
-```powershell
-uv run python -X utf8 scripts/run_live_case.py --list
-uv run python -X utf8 scripts/check_documents.py --list
-```
-
-列举不调用服务。实际运行需要项目配置，会产生服务调用费用：
-
-```powershell
-uv run python -X utf8 scripts/run_live_case.py --case page --output evals/runs/page.json
-uv run python -X utf8 scripts/check_documents.py --case long-section --output evals/runs/long-section.json
-```
-
-基础运行器保存答案与操作摘要；正文运行器记录实际公开请求、资料交付和执行记录，可使用固定资料或真实 Tavily。输出路径必须不存在。案例目标、固定夹具和精选证据见 [评估入口](../evals/README.md)。运行结果先作为过程产物使用，任务结束后仅保留有明确复查用途的内容。
-
-`scripts/check_streaming.py` 单独诊断 DeepSeek 无工具流式文本、追问与输出故障，复用生产 SSE 接收器。它不覆盖完整研究循环或 ChatGPT 订阅入口；仅需要定位这一层时使用。
-
-## 构建与分发
+## 构建
 
 ```powershell
 uv build
 ```
 
-`dist/` 内的包是构建时快照，不随源码变化；可编辑安装运行当前源码。分发前重新构建并验证安装入口。真实服务评估目前没有自动 CI 质量评分，离线测试通过不认证研究答案正确。
+默认在 `dist/` 生成 `.whl` 和 `.tar.gz`。wheel 用于安装包，sdist 用于从源码构建；本地开发通常直接 `uv run`，不需要持续保留构建产物。需要临时检查时可用 `uv build --out-dir <临时目录>`。
 
-构建包含规则独立于 Git 忽略规则；`pyproject.toml` 显式排除 `.uv-cache`，包括误留在源码子目录中的缓存。检查 sdist 和 wheel 的实际条目，再在独立目录安装 wheel 验证命令入口。正文验收脚本 `check_documents.py` 递归记录 `src/seekra` 下的 Python 源码指纹，用相对路径区分不同目录中的同名文件。
+分发前检查实际包内容、安装入口及依赖。Git 忽略规则与构建包含规则各自生效，不能用“已忽略”证明密钥、会话、缓存或本地文档不会进入安装包。
+
+## 记录检查结果
+
+在变更说明中记录相关检查的命令、结果和未覆盖范围。真实模型评估还需说明模型、案例版本和输入条件，并分别记录执行结果与答案判读。题面改变后，新结果不能直接延续旧题成绩。
+
+一次性探针放系统临时目录；仅在确实需要复查特定现场时保留原始输出。任务结束后判断材料用途，清理不再需要的文件。`evals/runs/` 是可选输出位置，不是永久归档约定。

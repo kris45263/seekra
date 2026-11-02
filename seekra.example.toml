@@ -1,0 +1,35 @@
+[app]
+default_model = "deepseek-research"
+capability = "search"
+data_dir = ".seekra/v2"
+
+[models.deepseek-research]
+provider = "deepseek"
+adapter = "litellm"
+model = "deepseek-flash"
+api_key_env = "DEEPSEEK_API_KEY"
+base_url = "https://api.deepseek.com"
+# Conservative usable input budget, below the provider window; adjust for your actual model.
+max_input_tokens = 64000
+max_output_tokens = 8192
+[models.deepseek-research.options]
+thinking = { type = "enabled" }
+reasoning_effort = "high"
+
+[models.kimi-research]
+provider = "moonshot"
+adapter = "litellm"
+model = "kimi-k2.6"
+api_key_env = "MOONSHOT_API_KEY"
+base_url = "https://api.moonshot.cn/v1"
+max_input_tokens = 64000
+max_output_tokens = 8192
+
+[models.glm-research]
+provider = "zai"
+adapter = "litellm"
+model = "glm-4.7"
+api_key_env = "ZAI_API_KEY"
+base_url = "https://open.bigmodel.cn/api/paas/v4/"
+max_input_tokens = 64000
+max_output_tokens = 8192

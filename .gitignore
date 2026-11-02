@@ -6,6 +6,7 @@
 # 本地会话、凭据与协作约定
 .seekra/
 /AGENTS.md
+/docs/validation.md
 
 # Python 环境和缓存
 .venv/
@@ -18,3 +19,6 @@ dist/
 
 # 每次评估的运行产物
 evals/runs/
+
+# Local named model configuration
+/seekra.toml
